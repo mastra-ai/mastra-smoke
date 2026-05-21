@@ -1,6 +1,6 @@
 # API Smoke Test Coverage
 
-> 285 tests across 56 test files — last updated 2026-05-18
+> 313 tests across 62 test files — last updated 2026-05-21
 
 **Test runner:** Vitest
 **Test dir:** `tests/`
@@ -29,9 +29,13 @@
 | System           | 2     | NEW — `/system/api-schema` + `/system/packages` |
 | Auth             | 2     | NEW — `/auth/capabilities` + `/auth/me` gated shape |
 | Providers        | 4     | NEW — tool-providers/processor-providers gated, channels/platforms empty |
-| Vector Store     | 0/8   | 🔒 Needs embedder + vector config |
+| OpenAI compat    | 10    | NEW — `/api/v1/conversations` + `/api/v1/responses` |
+| A2A              | 5     | NEW — agent card + `/api/a2a/:agentId` JSON-RPC message/send |
+| Embedders        | 1     | NEW — `/api/embedders` registry shape |
+| Vectors          | 1     | NEW — `/api/vectors` empty-registry shape |
+| Vector Store     | 0/7   | 🔒 Needs embedder + vector config (per-index endpoints) |
 | Logs             | 0/3   | 🔒 Needs logger transports |
-| **Total**        | **280** |      |
+| **Total**        | **313** |      |
 
 ### Coverage by `/api/*` route group (cross-reference)
 
@@ -54,6 +58,10 @@
 | `/api/mcp/*` | `tests/mcp/*` |
 | `/api/processors/*` | `tests/processors/*` |
 | `/api/tools/*` | `tests/tools/*` |
+| `/api/v1/conversations/*`, `/api/v1/responses/*` | `tests/v1/openai-compat.test.ts` |
+| `/api/a2a/:agentId`, `/.well-known/agent-card.json` | `tests/a2a/a2a.test.ts` |
+| `/api/embedders` | `tests/embedders/embedders.test.ts` |
+| `/api/vectors` | `tests/vectors/vectors.test.ts` |
 
 ---
 
@@ -496,14 +504,52 @@
 
 ---
 
+### OpenAI Compat — `tests/v1/openai-compat.test.ts` (10 tests)
+
+| Test | Status |
+|------|--------|
+| `POST /v1/conversations` rejects body without `agent_id` (400 + `issues[field=agent_id]`) | ✅ |
+| `POST /v1/conversations` creates a conversation (`object=conversation`, `thread.id===id`) | ✅ |
+| `GET /v1/conversations/:id` round-trips the conversation shape | ✅ |
+| `GET /v1/conversations/:id/items` returns `object=list`, empty `data`, `has_more=false` | ✅ |
+| `DELETE /v1/conversations/:id` returns `object=conversation.deleted`, then GET 404s | ✅ |
+| `GET /v1/conversations/:id` returns 404 with the id in the error message | ✅ |
+| `POST /v1/responses` rejects body without `input` (400 + `issues[field=input]`) | ✅ |
+| `POST /v1/responses` returns a completed response with `output_text` + balanced token usage | ✅ |
+| `GET /v1/responses/:id` returns 404 for an unknown id | ✅ |
+| `DELETE /v1/responses/:id` returns 404 for an unknown id | ✅ |
+
+> Note: the fixture does not persist Responses by default, so the suite covers the POST shape exhaustively rather than a GET-after-create round-trip.
+
+### A2A — `tests/a2a/a2a.test.ts` (5 tests)
+
+| Test | Status |
+|------|--------|
+| `GET /.well-known/:agentId/agent-card.json` exposes the card with calculator + string-transform skills | ✅ |
+| `GET /.well-known/:agentId/agent-card.json` returns 404 with the agent id in the error | ✅ |
+| `POST /api/a2a/:agentId` `message/send` returns `result.status.state === 'completed'` with text artifacts + history | ✅ |
+| `POST /api/a2a/:agentId` rejects unknown JSON-RPC `method` (400 + `issues[field=method]`) | ✅ |
+| `POST /api/a2a/:agentId` returns 404 with the unknown agent ID in the error | ✅ |
+
+### Embedders / Vectors — `tests/embedders/`, `tests/vectors/` (2 tests)
+
+| Test | Status |
+|------|--------|
+| `GET /embedders` returns a non-empty registry with id/provider/dimensions | ✅ |
+| `GET /vectors` returns an empty registry in the smoke fixture | ✅ |
+
+---
+
 ## ⬜ What's Not Tested
 
 ### Vector Store — 🔒 Needs embedder + vector config
 
+`GET /vectors` and `GET /embedders` are covered as empty/registry shape checks
+in `tests/vectors/` and `tests/embedders/`. The per-index CRUD endpoints below
+still require a real vector store to be wired up in the smoke fixture.
+
 | Endpoint | Priority |
 |----------|----------|
-| `GET /vectors` — List vector stores | High |
-| `GET /embedders` — List embedders | High |
 | `POST /vector/:name/create-index` — Create vector index | High |
 | `GET /vector/:name/indexes` — List indexes | High |
 | `GET /vector/:name/indexes/:indexName` — Get index details | High |
