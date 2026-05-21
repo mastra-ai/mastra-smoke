@@ -23,7 +23,112 @@ Activate any time you need to add or update tests in response to:
   kind, processor type, scorer kind, channel, schedule trigger, etc).
 - A user asking "do we cover X?" — start here, answer from the COVERAGE
   docs, then add what's missing.
+- A user asking "what's new since the last alpha?" or "what should we
+  add coverage for?" — jump to the **Discovering what's missing**
+  section below before touching any files.
 - A bug post-mortem revealing the smoke suite should have caught it.
+
+## Discovering what's missing
+
+When the user asks "what should we cover?" or "is anything new since
+the last alpha?", don't guess from memory — diff the live truth.
+
+### A. Diff the live API surface against existing tests
+
+The smoke fixture exposes `GET /api/system/api-schema`, which returns
+the full route catalog the running server actually serves. Compare it
+against the routes already exercised:
+
+```bash
+# All routes the running server exposes (requires a built + running fixture)
+pnpm build && pnpm dev &   # or however the fixture is up
+curl -s http://localhost:4111/api/system/api-schema \
+  | jq -r '.routes[] | "\(.method) \(.path)"' | sort -u > /tmp/server-routes.txt
+
+# All routes referenced by current tests
+grep -rhoE "'/api/[a-zA-Z0-9/_:{}-]+" tests | sort -u > /tmp/tested-routes.txt
+
+# Routes the server has but tests never touch
+comm -23 /tmp/server-routes.txt /tmp/tested-routes.txt | head -40
+```
+
+The leftover list is the candidate set. Skim it, group by route prefix,
+match against `tests/COVERAGE.md`'s section table to decide if it's a
+genuine gap or already covered indirectly (e.g. a `/:id` variant
+covered by the list test).
+
+### B. Diff Studio routes against existing UI specs
+
+Studio's route table lives in `packages/playground/src/App.tsx` upstream.
+Fetch it via the `debug-mastra-framework` recipe (single curl, no
+clone):
+
+```bash
+SHA=$(gh api repos/mastra-ai/mastra/commits/main --jq '.sha')
+curl -fsSL "https://raw.githubusercontent.com/mastra-ai/mastra/$SHA/packages/playground/src/App.tsx" \
+  | grep -E "path:|<Route" > /tmp/studio-routes.txt
+
+# Routes the UI specs visit
+grep -rhoE "page\.goto\('/[a-zA-Z0-9/_-]+" tests-ui | sort -u > /tmp/tested-ui-routes.txt
+```
+
+Cross-reference — anything in Studio that no spec visits is a candidate.
+
+### C. Scan recent upstream changesets
+
+Changesets describe what's about to ship in the next alpha, named per
+intent. They're the highest-signal source for "new feature landed":
+
+```bash
+gh api 'repos/mastra-ai/mastra/contents/.changeset?ref=main' \
+  --jq '.[] | select(.name | endswith(".md")) | select(.name != "README.md") | .name' \
+  | head -20
+
+# Read any that look feature-shaped
+gh api 'repos/mastra-ai/mastra/contents/.changeset/<file>.md?ref=main' \
+  --jq '.content' | base64 -d
+```
+
+Filter for `feat(...)` / `fix(...)` lines that mention new endpoints,
+new pages, new agent options, new processor kinds, etc. `chore` and
+internal refactors usually don't need new smoke coverage.
+
+### D. Scan recent commits since the last tested alpha
+
+For a more exhaustive sweep:
+
+```bash
+# Find the sha of the alpha currently under test (see debug-mastra-framework SKILL step 3)
+LAST_SHA="<resolved sha for the last green alpha>"
+
+gh api "repos/mastra-ai/mastra/compare/$LAST_SHA...main" \
+  --jq '.commits[] | "\(.sha[0:10]) \(.commit.message | split("\n")[0])"' \
+  | grep -iE '^(.{10}) (feat|fix)\(' \
+  | head -40
+```
+
+This shows every user-facing change between the last alpha we tested
+and `main`. Inspect commit diffs (`gh api repos/mastra-ai/mastra/commits/<sha>`)
+for any that add routes, components, or primitives.
+
+### E. Triage what you find
+
+Not everything new needs smoke coverage. Use this rubric:
+
+| Kind of change                          | Add smoke coverage? |
+|-----------------------------------------|---------------------|
+| New `/api/*` route                      | Yes — API test |
+| New Studio page or tab                  | Yes — UI spec |
+| New required request/response field     | Yes — extend nearest existing test |
+| New agent / tool / workflow primitive   | Yes — fixture + API test |
+| New optional config flag (defaults safe)| Usually no — unless it changes a default code path |
+| Internal refactor (no public surface)   | No |
+| Doc / README change                     | No |
+| Dependency bump                         | No (matrix covers it) |
+
+When in doubt: if a regression here would silently break a published
+alpha for users, add coverage. If a regression would surface as a
+TypeScript build error before publish, skip it.
 
 ## Mental model
 
