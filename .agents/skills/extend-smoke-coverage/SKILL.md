@@ -331,6 +331,8 @@ one, stop and ask "what does this actually prove?"
 | `fetchJson<any>(...)` in new code                                      | Type the response — missing fields fail at compile time. |
 | Error-body asserted only as `typeof error === 'string'`                | Assert the message contains the unknown id, missing field, or operation that failed. |
 | 400 body asserted without checking `issues[].field`                    | Validation responses carry structured `issues` — assert the offending field is named. |
+| `toEqual([])` on telemetry/discovery endpoints                         | Assert shape + a fixture-guaranteed stable value. See "Passive-accumulator endpoints" below. |
+| POST writes generic ids/types (`'thumbs'`, `'agent-1'`) into queryable telemetry | Use a per-run nonce (see "Nonce convention" below) so other tests don't collide with your queries. |
 
 Concrete examples from real smoke fixes:
 
@@ -355,6 +357,88 @@ expect(typeof text.text).toBe('string');
 expect(text.text.length).toBeGreaterThan(0);
 expect(data.usage.total_tokens).toBe(data.usage.input_tokens + data.usage.output_tokens);
 ```
+
+### 5b-passive. Passive-accumulator endpoints (never assert empty)
+
+A whole class of routes return **whatever telemetry has accumulated on
+the running fixture so far**. They are not isolated per test — every
+agent run, workflow execution, feedback POST, or score write the rest
+of the suite performs leaves a row these endpoints will surface.
+
+Asserting `toEqual([])` against any of them is an order-dependent
+timebomb: it passes when the test runs first, fails the moment another
+test runs ahead of it. This bit hard during the May 2026 observability
+expansion — six discovery tests passed in isolation, failed in the full
+suite once agent/workflow tests populated the trace store ahead of
+them.
+
+**Known passive accumulators** (assume more exist — anything reading
+from OTLP, the score store, or feedback table behaves this way):
+
+- `GET /api/observability/discovery/environments`
+- `GET /api/observability/discovery/entity-types`
+- `GET /api/observability/discovery/entity-names`
+- `GET /api/observability/discovery/metric-names`
+- `GET /api/observability/discovery/service-names`
+- `GET /api/observability/discovery/tags`
+- `GET /api/observability/traces`, `/spans`, `/logs` (list views)
+- Anything reading from `observability/feedback`, `observability/scores`
+  list endpoints without a filter that uniquely scopes to your test
+
+**Rule:** don't assert emptiness. Assert (a) the shape — array of the
+expected scalar type — and (b) a value the fixture *always* emits.
+
+```ts
+// ❌ Passes alone, fails in the full suite the moment any other test runs an agent
+expect(data.serviceNames).toEqual([]);
+
+// ✅ Catches "returns objects instead of strings" AND "endpoint doesn't query telemetry at all"
+expect(Array.isArray(data.serviceNames)).toBe(true);
+for (const s of data.serviceNames) expect(typeof s).toBe('string');
+expect(data.serviceNames).toContain('smoke-test');   // hardcoded service name in src/mastra/index.ts
+```
+
+Fixture-guaranteed stable values you can lean on:
+
+| Endpoint                          | Always-present value             | Source |
+|-----------------------------------|----------------------------------|--------|
+| `discovery/environments`          | `'production'`                   | OTLP default env |
+| `discovery/entity-types`          | `'agent'`                        | Every agent run emits one |
+| `discovery/metric-names`          | a string starting `'mastra_'`    | Built-in framework metrics |
+| `discovery/service-names`         | `'smoke-test'`                   | Hardcoded in `src/mastra/index.ts` |
+
+For an endpoint where you genuinely need an empty result (e.g.
+`metric-label-keys?metricName=does-not-exist`), use a unique
+nonexistent input — that lookup is filtered, not a global accumulator.
+
+### 5b-nonce. Nonce convention for state-mutating tests
+
+Any POST that writes to a queryable store (feedback, scores, traces,
+anything aggregations / list endpoints can read back) **must** tag the
+row with a per-run nonce. Otherwise two test files querying the same
+generic value (`feedbackType: 'thumbs'`) race each other — one creates
+data, the other expects empty, full-suite run goes red.
+
+```ts
+// At module scope, once per test file:
+const FEEDBACK_TYPE = `smoke-<area>-${Date.now()}`;
+const SCORER_ID     = `smoke-scorer-${Date.now()}`;
+const ENTITY_ID     = `smoke-entity-${Date.now()}`;
+
+// Use the nonce both when writing and when querying back:
+await fetchApi('/api/observability/feedback', {
+  method: 'POST',
+  body: JSON.stringify({ feedbackType: FEEDBACK_TYPE, entityId: ENTITY_ID, ... }),
+});
+
+const { data } = await fetchJson<...>('/api/observability/feedback');
+const row = data.feedback.find(f => f.feedbackType === FEEDBACK_TYPE);
+expect(row).toBeDefined();
+```
+
+`Date.now()` is the convention because it (a) survives parallel test
+runs in the same process, (b) is unique across CI retries, and (c)
+makes leaked rows easy to spot and clean up by prefix.
 
 ### 5b-ui. UI locator pitfalls
 
@@ -438,12 +522,24 @@ self-audit. The cheapest way is a sub-agent pass with this exact prompt:
 > would pass against bad data. Check specifically for:
 >
 > - Bare `expect(typeof x).toBe(...)` as the only check on a field
+>   (NOTE: `for (const x of arr) expect(typeof x).toBe('string')` is
+>   acceptable as a shape guard when paired with a separate
+>   value/length assertion — flag only if it's the *only* check on
+>   that field)
 > - `[a, b].toContain(status)` accepting multiple statuses
 > - `length > 0` / `toBeDefined()` without follow-up shape assertions
 > - `fetchJson<any>(...)` instead of a typed response
 > - Error bodies asserted only as "is a string"
 > - 400 responses without `issues[].field` checks
 > - `try/catch` swallowing errors inside test bodies
+> - Deep-equality of whole bodies (breaks on additive upstream changes)
+> - `toEqual([])` on any passive-accumulator endpoint (see 5b-passive)
+>   — these endpoints surface telemetry from every other test, so
+>   emptiness is order-dependent and flakes the suite
+> - State-mutating POSTs that write generic values (`'thumbs'`,
+>   `'agent-1'`) to queryable stores without a per-run nonce
+>   (see 5b-nonce). The aggregations/list query in another test file
+>   will collide.
 > - (UI only) `getByLabel(...)` used on form controls — Studio renders
 >   visible labels and hidden inputs as siblings; prefer `getByRole`.
 > - (UI only) `getByRole('listitem')` / `getByRole('list')` used to
@@ -456,8 +552,30 @@ self-audit. The cheapest way is a sub-agent pass with this exact prompt:
 > For each finding, name the file, line range, and a concrete tightened
 > assertion.
 
-Apply every flagged fix, then re-run the focused tests, then the full
-suite. Commit only after the audit comes back clean.
+**Don't auto-strip `Array.isArray(x)` before `toEqual([])` as
+"redundant".** It is redundant for the equality check itself, but it's
+often the only line that produces a useful failure message when the
+endpoint returns an object instead of an array. Keep it unless you're
+replacing it with something equally diagnostic.
+
+**The audit is a loop, not a single pass.** After applying flagged
+fixes:
+
+1. Re-run the audit on the patched files — fixes can introduce new
+   issues (a `toMatchObject` that's too loose, a removed guard that
+   was load-bearing).
+2. Run the focused tests for the patched files.
+3. Run the **full** suite (`pnpm test:all`). Order-dependent and
+   cross-file-contamination bugs only surface here.
+4. If the full-suite run reveals a failure, that's a real audit
+   finding — patch, then go back to step 1.
+5. Commit only when audit + full-suite are both clean in the same
+   iteration.
+
+In the May 2026 observability expansion the first audit pass missed
+the order-dependent discovery assertions; the full-suite run caught
+them; the second audit confirmed the fix. The loop is what makes the
+process reliable.
 
 This pass should also be run by reviewers on any smoke-coverage PR.
 
@@ -535,9 +653,16 @@ with reasoning if they're truly needed.
   `[200, 500].toContain(status)`, `length > 0` alone, `toBeDefined()`
   without drill-down, and `fetchJson<any>` all pass against broken
   servers and are rejected in review.
-- **Don't skip the self-audit** in section 5d. New test files get one
-  pass over them before commit — that's the cheapest way to catch the
-  assertion you wrote at 2am that proves nothing.
+- **Don't skip the self-audit** in section 5d. New test files get a
+  pass over them before commit, and **another pass after any fix** —
+  it's a loop, not a single shot. The full-suite run is part of the
+  loop.
+- **Don't assert `toEqual([])` on telemetry/discovery endpoints.** They
+  surface accumulated state from every other test in the suite. Assert
+  shape + a fixture-guaranteed value (see 5b-passive).
+- **Don't write generic values to telemetry stores from a test.** Use a
+  per-run nonce (`` `smoke-<area>-${Date.now()}` ``) so other tests
+  querying the same store don't collide with your row (see 5b-nonce).
 - **Don't use `getByLabel` on radios/checkboxes/switches.** Studio renders
   visible-label + hidden-input pairs; `getByLabel` matches both and fails
   strict mode. Use `getByRole('radio'|'checkbox', { name })`. See 5b-ui.
