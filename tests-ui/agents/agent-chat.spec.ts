@@ -62,9 +62,13 @@ test.describe('Agent Chat', () => {
   test('send message with generate mode', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
 
-    // Switch to Generate mode
+    // Switch to Generate mode.
+    // Studio renders the Stream/Generate radios as a base-ui radio group: a
+    // visible <span role="radio"> plus a hidden <input type="radio">, both
+    // associated with the same label. getByLabel('Generate') would match both
+    // and trip strict-mode. Target the role explicitly.
     await page.getByRole('tab', { name: 'Model Settings' }).click();
-    await page.getByLabel('Generate').click();
+    await page.getByRole('radio', { name: 'Generate' }).click();
     await page.getByRole('tab', { name: 'Overview' }).click();
 
     await fillAndSend(page, 'Say the word hello and nothing else.');
@@ -83,18 +87,20 @@ test.describe('Agent Chat', () => {
     // Switch to Model Settings tab
     await page.getByRole('tab', { name: 'Model Settings' }).click();
 
-    // Verify default stream mode
-    await expect(page.getByLabel('Stream')).toHaveAttribute('aria-checked', 'true');
+    // Stream/Generate are base-ui radios: visible <span role="radio"> + hidden
+    // <input type="radio"> share the label, so getByLabel matches both. Target
+    // by role to avoid strict-mode violations.
+    await expect(page.getByRole('radio', { name: 'Stream' })).toHaveAttribute('aria-checked', 'true');
 
     // Switch to Generate mode and change Max Steps
-    await page.getByLabel('Generate').click();
+    await page.getByRole('radio', { name: 'Generate' }).click();
     await page.click('text=Advanced Settings');
     await page.getByLabel('Max Steps').fill('3');
 
     // Reload and verify both Generate mode and Max Steps persisted
     await page.reload();
     await page.getByRole('tab', { name: 'Model Settings' }).click();
-    await expect(page.getByLabel('Generate')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('radio', { name: 'Generate' })).toHaveAttribute('aria-checked', 'true');
     await page.click('text=Advanced Settings');
     await expect(page.getByLabel('Max Steps')).toHaveValue('3');
   });

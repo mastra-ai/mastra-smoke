@@ -25,10 +25,16 @@ test.describe('Workspaces', () => {
     });
   });
 
-  // Clean up fixture files after all tests
+  // Clean up fixture files after all tests. Also wipe .agents/ in case the
+  // skill-install test failed mid-flight and left .agents/skills/find-skills
+  // on disk — otherwise the next CI run would see "Already Installed" and
+  // the install button would be permanently disabled.
   test.afterAll(async ({ request }) => {
     await request.delete(
       `/api/workspaces/test-workspace/fs/delete?path=smoke-fixtures&recursive=true&force=true`,
+    );
+    await request.delete(
+      `/api/workspaces/test-workspace/fs/delete?path=.agents&recursive=true&force=true`,
     );
   });
 
@@ -136,6 +142,14 @@ test.describe('Workspaces', () => {
     // Increase timeout — network calls to skills.sh can be slow
     test.setTimeout(60_000);
 
+    // Pre-clean .agents/ in case a previous run crashed mid-install and left
+    // `.agents/skills/find-skills` on disk. If the skill is already installed,
+    // Studio renders the install button as disabled with "Already Installed",
+    // which makes the click below time out.
+    await request.delete(
+      `/api/workspaces/test-workspace/fs/delete?path=.agents&recursive=true&force=true`,
+    );
+
     // ── Mock the registry discovery endpoints so the test doesn't depend on
     //    what is trending on skills.sh. The install & remove endpoints still
     //    hit the real server (and the real skills.sh files API) so we validate
@@ -188,16 +202,18 @@ test.describe('Workspaces', () => {
     // Wait for success toast
     await expect(page.getByText(/installed successfully/i)).toBeVisible({ timeout: 20_000 });
 
-    // Dialog should close and the skill should appear in the skills table
+    // Dialog should close and the skill should appear in the skills table.
+    // Studio renders each skill row as a button (containing the name + path +
+    // description) followed by sibling Update/Remove buttons — not as a <li>.
+    // Scope to the Skills tabpanel to avoid matching toast notifications.
     await expect(dialog).not.toBeVisible();
-    // Scope to main to avoid matching toast notifications
-    const main = page.locator('main');
-    const skillRow = main.getByRole('listitem').filter({ hasText: SKILL_NAME });
+    const skillsTab = page.getByRole('tabpanel', { name: /Skills/ });
+    const skillRow = skillsTab.getByRole('button', { name: new RegExp(`^${SKILL_NAME}\\b`) });
     await expect(skillRow).toBeVisible({ timeout: 5_000 });
-    await expect(skillRow.getByText(`.agents/skills/${SKILL_NAME}`)).toBeVisible();
+    await expect(skillRow).toContainText(`.agents/skills/${SKILL_NAME}`);
 
-    // Now remove the skill — target the icon button by aria-label to avoid matching the row button
-    await skillRow.locator(`button[aria-label="Remove ${SKILL_NAME}"]`).click();
+    // Now remove the skill — target the dedicated Remove button by accessible name
+    await skillsTab.getByRole('button', { name: `Remove ${SKILL_NAME}` }).click();
 
     // Confirm in alert dialog
     const alertDialog = page.getByRole('alertdialog');
@@ -208,7 +224,7 @@ test.describe('Workspaces', () => {
     // Wait for removal success toast
     await expect(page.getByText(/removed successfully/i)).toBeVisible({ timeout: 10_000 });
 
-    // Skill row should disappear from the list
+    // Skill row should disappear from the Skills tabpanel
     await expect(skillRow).toHaveCount(0, { timeout: 5_000 });
 
     // Clean up .agents directory from workspace filesystem (in case of leftover)
