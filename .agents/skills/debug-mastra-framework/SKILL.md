@@ -100,16 +100,22 @@ suspect behavior.
 
 ### 4. Fetch original TypeScript by path
 
-Once you have a sha, fetch the upstream source for any file:
+Once you have a sha, pull any file straight from
+`raw.githubusercontent.com` — single HTTP fetch, no clone:
 
 ```bash
-.agents/skills/debug-mastra-framework/scripts/fetch-source.sh \
-    9c8870195b packages/core/src/tools/tool-builder/builder.ts \
-    > /tmp/builder.ts
+SHA="bf6c2a55620d7cc9ded270d5e2535d6d58d15702"
+SRC="packages/core/src/tools/tool-builder/builder.ts"
+curl -fsSL "https://raw.githubusercontent.com/mastra-ai/mastra/$SHA/$SRC" \
+  > /tmp/builder.ts
 view /tmp/builder.ts
 ```
 
-This uses `raw.githubusercontent.com` — single HTTP fetch, no clone.
+If `curl` 404s, the path no longer exists at that sha — verify with:
+
+```bash
+gh api "repos/mastra-ai/mastra/contents/$(dirname "$SRC")?ref=$SHA" --jq '.[].path'
+```
 
 ### 5. Search upstream code
 
@@ -168,14 +174,28 @@ Only clone when:
 - You need to run the upstream test suite.
 - You need to bisect commits between alphas.
 
+Clone next to the smoke repo (not inside it — pnpm will discover
+workspace protocols and get confused):
+
 ```bash
-.agents/skills/debug-mastra-framework/scripts/clone-upstream.sh
-# clones mastra-ai/mastra into ../mastra and prints the next steps
-# (cd into it, install, pnpm --filter @mastra/core build:lib, pack, install into smoke)
+git clone --depth 200 https://github.com/mastra-ai/mastra.git ../mastra
+cd ../mastra
+pnpm install
+# ... edit packages/core/src/... ...
+pnpm --filter @mastra/core build:lib
 ```
 
-The script does **not** assume any particular working tree layout — it
-clones to a sibling directory of the smoke repo and leaves it untouched.
+To run the patched build in the smoke fixture, **overlay** the
+compiled `dist/` directly. Do **not** `pnpm install` the tarball —
+it pulls `workspace:*` deps that don't exist outside the upstream
+monorepo:
+
+```bash
+cd -                                            # back to the smoke repo
+cp -r ../mastra/packages/core/dist/* \
+      ./.mastra/output/node_modules/@mastra/core/dist/
+pnpm test
+```
 
 ## Known matrix-specific footguns
 
