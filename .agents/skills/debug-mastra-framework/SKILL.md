@@ -60,15 +60,43 @@ search_content 'validateToolInput' .mastra/output/node_modules/@mastra/core/dist
 
 ### 3. Map version → upstream sha
 
-Run `scripts/resolve-sha.sh <package> <version>`:
+Alpha releases don't get git tags, so map version → sha by scanning
+recent "version packages" commits and reading the bumped `package.json`
+at each one. Inline it — no script, since package layouts drift:
 
 ```bash
-.agents/skills/debug-mastra-framework/scripts/resolve-sha.sh @mastra/core 1.36.0-alpha.10
-# prints commit sha that published this version, e.g. 9c8870195b
+PKG="@mastra/core"                     # the npm name from your stack trace
+VER="1.36.0-alpha.9"                   # the version from .mastra/output/node_modules/$PKG/package.json
+
+# Step 1 — find the repo-relative directory for this package.
+# Discover it rather than hardcoding: mastra-ai/mastra reorganizes paths
+# (packages/, stores/, loggers/, deployers/, auth/, voice/, ...).
+# This walks ~200 package.json files; budget ~30s the first time.
+PATHS=$(gh api 'repos/mastra-ai/mastra/git/trees/main?recursive=1' \
+  --jq '.tree[] | select(.path | endswith("/package.json") and (contains("node_modules")|not)) | .path')
+PKG_DIR=""
+for p in $PATHS; do
+  n=$(curl -fsSL "https://raw.githubusercontent.com/mastra-ai/mastra/main/$p" 2>/dev/null | jq -r '.name // ""')
+  if [ "$n" = "$PKG" ]; then PKG_DIR="${p%/package.json}"; break; fi
+done
+echo "$PKG_DIR"   # e.g. packages/core
+
+# Step 2 — walk recent "version packages" commits, return the sha whose
+# $PKG_DIR/package.json is at $VER.
+for sha in $(gh search commits 'version packages' --repo mastra-ai/mastra \
+                 --limit 50 --json sha --jq '.[].sha'); do
+  v=$(curl -fsSL \
+    "https://raw.githubusercontent.com/mastra-ai/mastra/$sha/$PKG_DIR/package.json" \
+    2>/dev/null | jq -r '.version // ""')
+  if [ "$v" = "$VER" ]; then echo "$sha"; break; fi
+done
+# → e.g. bf6c2a55620d7cc9ded270d5e2535d6d58d15702
 ```
 
-The script reads npm metadata (`gitHead`) and falls back to scanning
-recent `mastra-ai/mastra` commits for the matching changeset.
+If nothing matches, the alpha may not have been published yet (a
+locally-built core has no upstream "version packages" commit). Fall
+back to `git log` on `main` for the PR/changeset that introduced the
+suspect behavior.
 
 ### 4. Fetch original TypeScript by path
 
