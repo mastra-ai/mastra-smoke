@@ -1,0 +1,12 @@
+node_modules/
+.mastra/
+test-results/
+reports/
+playwright-report/
+test-workspace/
+.env
+*duckdb*
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
