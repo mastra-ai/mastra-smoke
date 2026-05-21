@@ -274,3 +274,14 @@ jobs:
             reports/
             test-results/
           retention-days: 30
+
+      # ── Fail the job if any test step failed ───────────────────────────
+      # The API and UI steps use continue-on-error so Slack reporting + artifact
+      # upload still run on red. This step turns those captured outcomes into a
+      # real job failure so the run status reflects test results.
+      - name: Fail if tests failed
+        if: always() && (steps.api-tests.outcome == 'failure' || steps.ui-tests.outcome == 'failure')
+        run: |
+          echo "API tests outcome: ${{ steps.api-tests.outcome }}"
+          echo "UI tests outcome:  ${{ steps.ui-tests.outcome }}"
+          exit 1
