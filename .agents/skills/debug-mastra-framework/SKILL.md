@@ -167,6 +167,20 @@ suite (race condition, request ordering, schema mutation across
 requests), document that explicitly — don't waste cycles chasing a
 Node-only repro that can't exist.
 
+**Don't use `agent-browser` to "reproduce" a Playwright UI test failure.**
+`agent-browser` drives a live browser against the real backend with no
+`page.route()` mocks, so any test that depends on intercepted responses
+(e.g. mocked `skills.sh` registry, mocked LLM streams, network-blocked
+external calls) will exhibit *different* behaviour under `agent-browser`
+than it did under Playwright. Use `agent-browser` for:
+- Exploring the live UI to figure out what selectors / accessible names
+  Studio currently emits.
+- Confirming the real backend's response shape.
+
+Reach for a throwaway `.spec.ts` probe (Playwright with the same
+`page.route()` stubs) when you need to reproduce the exact wire
+conditions of the failing test.
+
 ### 8. Escalate to local clone (last resort)
 
 Only clone when:

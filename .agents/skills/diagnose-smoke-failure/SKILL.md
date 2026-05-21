@@ -54,8 +54,58 @@ Run the `fetch_artifacts` command from the context block verbatim. It downloads:
 - `reports/api-results.json` and/or `reports/ui-results.json` — same data, structured.
 - `test-results/**/video.webm` (UI only) — playback of the failing browser session.
 - `test-results/**/trace.zip` (UI only) — Playwright trace for time-travel debugging.
+- `test-results/**/error-context.md` (UI only) — Playwright's auto-generated failure
+  report. **Read this first for UI failures.** It includes a YAML accessibility
+  snapshot of the live DOM at the moment of failure. That snapshot is how you find
+  "the assertion expected `<li>` but Studio now renders the row as `<button>`"
+  without guessing or rerunning anything.
 
-The error strings in the context block are truncated to ~240 chars. The full stack traces live in the JUnit files. **Always read the JUnit, not just the context block.**
+The error strings in the context block are truncated to ~240 chars. The full stack
+traces live in the JUnit files. **Always read the JUnit, not just the context block.**
+
+### Step 2a — On retried failures, read BOTH attempts
+
+Playwright (UI) and Vitest (`retry`) both keep the last attempt's error in JUnit.
+If a test was retried, the error you see is from the *retry*, which is often a
+state-leak cascade from the original failure — not the root cause.
+
+Always check whether the failing test was retried:
+
+```bash
+ls test-results/ | grep -- '-retry'
+# e.g. workspaces-workspaces-Work-da264-...-chromium/             (attempt 1)
+#      workspaces-workspaces-Work-da264-...-chromium-retry1/      (attempt 2)
+```
+
+If both exist, read `error-context.md` from each. The attempt-1 error is usually
+the real bug; attempt-2 is the symptom of state the first failure left behind
+(e.g. install succeeded but the row didn't appear → next attempt sees "already
+installed" and the install button is permanently disabled).
+
+Diagnose attempt 1. Fix attempt 1. The retry symptom resolves itself.
+
+### Step 2b — Match the CI alpha version locally before reproducing
+
+If a failure looks like it needs local reproduction (UI flake, order-dependent
+fail, "works on my machine"), **first** sync your local fixture to the exact
+alpha version that broke in CI. Otherwise you'll chase a bug that was fixed in
+a newer alpha or doesn't exist in an older one — and waste an hour wondering
+why local is green.
+
+The context block has it under `packages_under_test`. Pin in `package.json`,
+reinstall, rebuild:
+
+```bash
+# Read the exact version from the context block, e.g. @mastra/core@1.37.0-alpha.1
+# Edit package.json to pin every @mastra/* under test to that version
+pnpm install
+pnpm build:studio
+# Now reproduce against the same bits CI ran
+```
+
+If the bug doesn't reproduce locally even after version-matching, the next
+suspect is dependency hoisting (CI Linux pnpm hoists differently from Mac).
+See `debug-mastra-framework` SKILL for the zod v3/v4 hoisting case study.
 
 ## Step 3 — Triage into one of three buckets
 
@@ -69,8 +119,28 @@ Tell-tale signs:
 - Stack trace stops inside `tests/` or `tests-ui/` — no `node_modules/@mastra/*` frames.
 - Error is an `expect(...)` mismatch on a shape that recently changed upstream (check recent changesets in `mastra-ai/mastra/.changeset/*.md`).
 - Test is asserting on a hardcoded port, version, or default that changed.
+- The `error-context.md` accessibility snapshot shows the element the test
+  expected, but rendered with **different markup** (e.g. row is now a `<button>`
+  not a `<li>`; control is now `<span>` + hidden `<input>` not a single labelled
+  element). Studio frequently changes DOM in alpha bumps; tests must follow.
+- Test creates filesystem state (a workspace skill, a stored agent, a
+  scheduler, etc.) and the **retry** fails with "already exists" / "already
+  installed" / disabled control. Indicates a mid-test failure that left state
+  behind, poisoning the next iteration. Fix needs an unconditional `afterAll`
+  cleanup, not just happy-path teardown — see "State-leak fix pattern" below.
 
 Action: open a PR in `mastra-ai/mastra-smoke` that fixes the test. Title format: `fix(smoke): <one-line summary>`. Always reference the run URL in the PR body.
+
+#### State-leak fix pattern
+
+When the root cause is a mid-test failure leaving state behind, **both** changes
+are usually needed in the same PR:
+
+1. Fix the actual assertion / locator / markup mismatch so attempt 1 passes.
+2. Add an unconditional `afterAll` (or `afterEach`) cleanup that wipes whatever
+   the test created — even if the body throws. Happy-path cleanups at the end
+   of the test body don't run when the test fails, so the next CI run inherits
+   poisoned state and you spend the next session diagnosing a phantom bug.
 
 ### Bucket B: Upstream `@mastra/*` regression
 

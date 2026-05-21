@@ -269,6 +269,20 @@ Conventions that have paid off:
 - **No `setTimeout` in tests**. Use Playwright/Vitest waiting primitives.
 - **Tag LLM-touching tests with `@llm`** so the matrix-level retry budget
   applies (see `playwright.config.ts` / `vitest.config.ts`).
+- **Prefer `getByRole(role, { name })` over `getByLabel(name)`** for form
+  controls. Studio's design system often renders a visible labelled `<span>`
+  next to a hidden `<input>` carrying the same accessible name — `getByLabel`
+  then matches both and fails strict mode. `getByRole('radio'|'checkbox'|'textbox')`
+  only matches the actual control. See "UI locator pitfalls" below.
+- **Don't anchor on generic semantic wrappers** (`getByRole('listitem')`,
+  `getByRole('list')`) for table-like rows. Studio renders rows as
+  `<button>`, `<div>`, or other elements, not `<li>`. Scope to the parent
+  region/tabpanel and match the row by accessible name instead.
+- **Always design failure-safe cleanup.** Any test that creates filesystem
+  state, DB rows, or remote registrations needs an `afterAll` (or `afterEach`)
+  hook that wipes that state **even if the test body throws**. See "Failure-safe
+  cleanup" below — this has caused several "phantom" CI failures where the
+  retry sees "already exists" because attempt 1 failed mid-flight.
 
 ### 5a. Probe before you assert
 
@@ -342,7 +356,78 @@ expect(text.text.length).toBeGreaterThan(0);
 expect(data.usage.total_tokens).toBe(data.usage.input_tokens + data.usage.output_tokens);
 ```
 
-### 5c. Self-audit before committing
+### 5b-ui. UI locator pitfalls
+
+Playwright failures in past CI runs that turned out to be smoke-fixture bugs
+followed two recurring patterns. Avoid both.
+
+**Banned: `getByLabel(name)` on radios, checkboxes, and switches.**
+Studio renders many controls as a visible labelled wrapper + a hidden native
+input. Both carry the same accessible name, so `getByLabel` matches two
+elements and Playwright fails strict mode with `resolved to 2 elements`.
+
+```ts
+// ❌ Strict-mode time bomb — breaks the moment Studio adds an inner <input>
+await page.getByLabel('Generate').click();
+await expect(page.getByLabel('Stream')).toHaveAttribute('data-state', 'checked');
+
+// ✅ Only matches the role-bearing element
+await page.getByRole('radio', { name: 'Generate' }).click();
+await expect(page.getByRole('radio', { name: 'Stream' })).toHaveAttribute('data-state', 'checked');
+```
+
+**Banned: `getByRole('listitem')` for table rows.**
+Studio renders rows in skills/agents/workflows lists as `<button>` (with the
+name, path, and description inline) plus sibling action buttons — not as `<li>`.
+Anchoring on `listitem` quietly stops matching the next time the design system
+changes.
+
+```ts
+// ❌ Brittle — assumes a specific wrapper element
+const row = page.locator('main').getByRole('listitem').filter({ hasText: skillName });
+
+// ✅ Scope to the panel, match the row by accessible name
+const skillsTab = page.getByRole('tabpanel', { name: /Skills/ });
+const row = skillsTab.getByRole('button', { name: new RegExp(`^${skillName}\\b`) });
+```
+
+When in doubt, open `error-context.md` from a failing run's `test-results/`
+directory — its YAML accessibility snapshot tells you the exact roles and
+names Studio is currently emitting.
+
+### 5c. Failure-safe cleanup for tests that create state
+
+Tests that mutate the filesystem (`/api/workspaces/*/fs/*`), register entities,
+or install skills **must** wipe that state in an `afterAll` / `afterEach` —
+not just at the end of the test body. If the body throws after creating the
+state but before the cleanup line, the next CI iteration inherits the leftover.
+That's how a fixable assertion failure becomes a multi-attempt "already exists"
+mystery that masks the real bug.
+
+```ts
+test.describe('Skills install', () => {
+  // ❌ Cleanup never runs if any earlier line in the test throws.
+  test('install + remove', async ({ request }) => {
+    await request.post('/api/.../install', { ... });
+    await expect(/* ... */).toBeVisible();           // <-- if this fails, the next
+    await request.delete('/api/.../uninstall');       //     line never executes
+  });
+
+  // ✅ afterAll runs regardless of test outcome — next iteration starts clean.
+  test.afterAll(async ({ request }) => {
+    await request.delete(
+      `/api/workspaces/test-workspace/fs/delete?path=.agents&recursive=true&force=true`,
+    );
+  });
+});
+```
+
+A self-audit question for any new test: **"If line 5 of my test body throws,
+does the next CI run start with the same on-disk state as before this test
+existed?"** If the answer is no, add the unconditional cleanup before
+committing.
+
+### 5d. Self-audit before committing
 
 After writing tests but **before** running the full suite, run a focused
 self-audit. The cheapest way is a sub-agent pass with this exact prompt:
@@ -359,6 +444,14 @@ self-audit. The cheapest way is a sub-agent pass with this exact prompt:
 > - Error bodies asserted only as "is a string"
 > - 400 responses without `issues[].field` checks
 > - `try/catch` swallowing errors inside test bodies
+> - (UI only) `getByLabel(...)` used on form controls — Studio renders
+>   visible labels and hidden inputs as siblings; prefer `getByRole`.
+> - (UI only) `getByRole('listitem')` / `getByRole('list')` used to
+>   anchor table-like rows. Studio rows are usually `<button>` or
+>   `<div>`; prefer scoping by `tabpanel`/`region` and matching by name.
+> - (UI only) Test creates filesystem or registry state but cleanup
+>   lives in the test body (not in `afterAll`/`afterEach`). A failure
+>   mid-body leaks state to the next CI iteration.
 >
 > For each finding, name the file, line range, and a concrete tightened
 > assertion.
@@ -442,6 +535,15 @@ with reasoning if they're truly needed.
   `[200, 500].toContain(status)`, `length > 0` alone, `toBeDefined()`
   without drill-down, and `fetchJson<any>` all pass against broken
   servers and are rejected in review.
-- **Don't skip the self-audit** in section 5c. New test files get one
+- **Don't skip the self-audit** in section 5d. New test files get one
   pass over them before commit — that's the cheapest way to catch the
   assertion you wrote at 2am that proves nothing.
+- **Don't use `getByLabel` on radios/checkboxes/switches.** Studio renders
+  visible-label + hidden-input pairs; `getByLabel` matches both and fails
+  strict mode. Use `getByRole('radio'|'checkbox', { name })`. See 5b-ui.
+- **Don't anchor on `getByRole('listitem')` for table rows.** Studio
+  rows are `<button>`/`<div>`, not `<li>`. Scope by parent region and
+  match by accessible name. See 5b-ui.
+- **Don't put cleanup at the end of a test body.** It won't run if any
+  earlier line throws, and the next CI iteration inherits the leftover
+  state. Use `test.afterAll` / `test.afterEach`. See 5c.
