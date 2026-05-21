@@ -1,6 +1,6 @@
 # API Smoke Test Coverage
 
-> 312 tests across 62 test files — last updated 2026-05-21
+> 313 tests across 62 test files — last updated 2026-05-21
 
 **Test runner:** Vitest
 **Test dir:** `tests/`
@@ -30,12 +30,12 @@
 | Auth             | 2     | NEW — `/auth/capabilities` + `/auth/me` gated shape |
 | Providers        | 4     | NEW — tool-providers/processor-providers gated, channels/platforms empty |
 | OpenAI compat    | 10    | NEW — `/api/v1/conversations` + `/api/v1/responses` |
-| A2A              | 4     | NEW — agent card + `/api/a2a/:agentId` JSON-RPC message/send |
+| A2A              | 5     | NEW — agent card + `/api/a2a/:agentId` JSON-RPC message/send |
 | Embedders        | 1     | NEW — `/api/embedders` registry shape |
 | Vectors          | 1     | NEW — `/api/vectors` empty-registry shape |
 | Vector Store     | 0/7   | 🔒 Needs embedder + vector config (per-index endpoints) |
 | Logs             | 0/3   | 🔒 Needs logger transports |
-| **Total**        | **312** |      |
+| **Total**        | **313** |      |
 
 ### Coverage by `/api/*` route group (cross-reference)
 
@@ -508,25 +508,28 @@
 
 | Test | Status |
 |------|--------|
-| `POST /v1/conversations` rejects body without `agent_id` (400) | ✅ |
-| `POST /v1/conversations` creates a conversation and echoes metadata | ✅ |
-| `GET /v1/conversations/:id` returns the created conversation | ✅ |
-| `GET /v1/conversations/:id/items` returns an empty list initially | ✅ |
-| `DELETE /v1/conversations/:id` deletes and 404s on subsequent GET | ✅ |
-| Unknown conversation returns 404 | ✅ |
-| `POST /v1/responses` rejects body without `input` (400) | ✅ |
-| `POST /v1/responses` returns a completed response with `output_text` | ✅ |
-| `GET /v1/responses/:id` returns the response after creation | ✅ |
-| Unknown response returns 404 | ✅ |
+| `POST /v1/conversations` rejects body without `agent_id` (400 + `issues[field=agent_id]`) | ✅ |
+| `POST /v1/conversations` creates a conversation (`object=conversation`, `thread.id===id`) | ✅ |
+| `GET /v1/conversations/:id` round-trips the conversation shape | ✅ |
+| `GET /v1/conversations/:id/items` returns `object=list`, empty `data`, `has_more=false` | ✅ |
+| `DELETE /v1/conversations/:id` returns `object=conversation.deleted`, then GET 404s | ✅ |
+| `GET /v1/conversations/:id` returns 404 with the id in the error message | ✅ |
+| `POST /v1/responses` rejects body without `input` (400 + `issues[field=input]`) | ✅ |
+| `POST /v1/responses` returns a completed response with `output_text` + balanced token usage | ✅ |
+| `GET /v1/responses/:id` returns 404 for an unknown id | ✅ |
+| `DELETE /v1/responses/:id` returns 404 for an unknown id | ✅ |
 
-### A2A — `tests/a2a/a2a.test.ts` (4 tests)
+> Note: the fixture does not persist Responses by default, so the suite covers the POST shape exhaustively rather than a GET-after-create round-trip.
+
+### A2A — `tests/a2a/a2a.test.ts` (5 tests)
 
 | Test | Status |
 |------|--------|
-| `GET /.well-known/agent-card.json` exposes the discovery card | ✅ |
-| `POST /api/a2a/:agentId` `message/send` returns `result.status.state === 'completed'` | ✅ |
-| `POST /api/a2a/:agentId` rejects malformed JSON-RPC payloads | ✅ |
-| Unknown agent ID surfaces an error | ✅ |
+| `GET /.well-known/:agentId/agent-card.json` exposes the card with calculator + string-transform skills | ✅ |
+| `GET /.well-known/:agentId/agent-card.json` returns 404 with the agent id in the error | ✅ |
+| `POST /api/a2a/:agentId` `message/send` returns `result.status.state === 'completed'` with text artifacts + history | ✅ |
+| `POST /api/a2a/:agentId` rejects unknown JSON-RPC `method` (400 + `issues[field=method]`) | ✅ |
+| `POST /api/a2a/:agentId` returns 404 with the unknown agent ID in the error | ✅ |
 
 ### Embedders / Vectors — `tests/embedders/`, `tests/vectors/` (2 tests)
 

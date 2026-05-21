@@ -25,12 +25,16 @@ afterAll(async () => {
 describe('/api/v1 OpenAI Responses-compatible surface', () => {
   describe('conversations', () => {
     it('POST /v1/conversations requires agent_id', async () => {
-      const { status, data } = await fetchJson<any>('/api/v1/conversations', {
+      const { status, data } = await fetchJson<{
+        error: string;
+        issues: Array<{ field: string; message: string }>;
+      }>('/api/v1/conversations', {
         method: 'POST',
         body: JSON.stringify({}),
       });
       expect(status).toBe(400);
-      expect(typeof data.error).toBe('string');
+      expect(data.error).toBe('Invalid request body');
+      expect(data.issues.some((i) => i.field === 'agent_id')).toBe(true);
     });
 
     it('POST /v1/conversations creates a conversation with OpenAI-shaped response', async () => {
@@ -78,9 +82,11 @@ describe('/api/v1 OpenAI Responses-compatible surface', () => {
     });
 
     it('GET /v1/conversations/:id returns 404 for an unknown conversation', async () => {
-      const { status, data } = await fetchJson<any>('/api/v1/conversations/does-not-exist-smoke');
+      const { status, data } = await fetchJson<{ error: string }>(
+        '/api/v1/conversations/does-not-exist-smoke',
+      );
       expect(status).toBe(404);
-      expect(typeof data.error).toBe('string');
+      expect(data.error).toMatch(/does-not-exist-smoke/);
     });
 
     it('DELETE /v1/conversations/:id removes the conversation and returns deleted=true', async () => {
@@ -103,53 +109,80 @@ describe('/api/v1 OpenAI Responses-compatible surface', () => {
 
   describe('responses', () => {
     it('POST /v1/responses requires input', async () => {
-      const { status, data } = await fetchJson<any>('/api/v1/responses', {
+      const { status, data } = await fetchJson<{
+        error: string;
+        issues: Array<{ field: string; message: string }>;
+      }>('/api/v1/responses', {
         method: 'POST',
         body: JSON.stringify({ agent_id: 'test-agent' }),
       });
       expect(status).toBe(400);
-      expect(typeof data.error).toBe('string');
+      expect(data.error).toBe('Invalid request body');
+      expect(data.issues.some((i) => i.field === 'input')).toBe(true);
     });
 
     it('POST /v1/responses with input + agent_id returns an OpenAI Responses-shaped object @llm', async () => {
-      const { status, data } = await fetchJson<any>('/api/v1/responses', {
+      const { status, data } = await fetchJson<{
+        id: string;
+        object: string;
+        status: string;
+        model: string;
+        output: Array<{
+          type: string;
+          role?: string;
+          content?: Array<{ type: string; text?: string }>;
+        }>;
+        usage: { input_tokens: number; output_tokens: number; total_tokens: number };
+      }>('/api/v1/responses', {
         method: 'POST',
         body: JSON.stringify({
           input: 'Say "hello" and nothing else.',
           agent_id: 'test-agent',
         }),
       });
+
       expect(status).toBe(200);
       expect(typeof data.id).toBe('string');
       expect(data.object).toBe('response');
       expect(data.status).toBe('completed');
       expect(typeof data.model).toBe('string');
+      expect(data.model.length).toBeGreaterThan(0);
+
       expect(Array.isArray(data.output)).toBe(true);
-      expect(data.output.length).toBeGreaterThan(0);
-
-      const message = data.output.find((o: any) => o.type === 'message');
+      const message = data.output.find((o) => o.type === 'message');
       expect(message).toBeDefined();
-      expect(message.role).toBe('assistant');
-      expect(Array.isArray(message.content)).toBe(true);
+      expect(message!.role).toBe('assistant');
+      expect(Array.isArray(message!.content)).toBe(true);
 
-      expect(data.usage).toBeDefined();
-      expect(typeof data.usage.total_tokens).toBe('number');
+      const outputText = message!.content!.find((c) => c.type === 'output_text');
+      expect(outputText).toBeDefined();
+      expect(typeof outputText!.text).toBe('string');
+      expect(outputText!.text!.length).toBeGreaterThan(0);
+
+      expect(typeof data.usage.input_tokens).toBe('number');
+      expect(typeof data.usage.output_tokens).toBe('number');
+      expect(data.usage.total_tokens).toBe(data.usage.input_tokens + data.usage.output_tokens);
 
       createdResponseIds.add(data.id);
     }, 45_000);
 
     it('GET /v1/responses/:id returns 404 for an unknown response', async () => {
-      const { status, data } = await fetchJson<any>('/api/v1/responses/does-not-exist-smoke');
+      const { status, data } = await fetchJson<{ error: string }>(
+        '/api/v1/responses/does-not-exist-smoke',
+      );
       expect(status).toBe(404);
-      expect(typeof data.error).toBe('string');
+      expect(data.error).toMatch(/does-not-exist-smoke/);
     });
 
     it('DELETE /v1/responses/:id returns 404 for an unknown response', async () => {
-      const { status, data } = await fetchJson<any>('/api/v1/responses/does-not-exist-smoke', {
-        method: 'DELETE',
-      });
+      const { status, data } = await fetchJson<{ error: string }>(
+        '/api/v1/responses/does-not-exist-smoke',
+        {
+          method: 'DELETE',
+        },
+      );
       expect(status).toBe(404);
-      expect(typeof data.error).toBe('string');
+      expect(data.error).toMatch(/does-not-exist-smoke/);
     });
   });
 });
