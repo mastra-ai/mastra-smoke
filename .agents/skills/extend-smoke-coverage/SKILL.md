@@ -1,6 +1,6 @@
 ---
 name: extend-smoke-coverage
-description: Add smoke-test coverage for a new Mastra feature, API route, or Studio UI surface. Use when the user asks to "add coverage for X", "write a smoke test for the new Y endpoint", "test the new Z page", when a Mastra release notes mention features not currently exercised, or when investigating a regression that wasn't caught because there was no test for that path. This skill explains where tests live (`tests/` API vs `tests-ui/` UI), how to register fixtures in `src/mastra/`, how to update the COVERAGE.md tracking docs so the suite reflects reality, and the conventions to follow so new tests don't introduce flakes.
+description: Add smoke-test coverage for a new Mastra feature, API route, or Studio UI surface. Use when the user asks to "add coverage for X", "write a smoke test for the new Y endpoint", "test the new Z page", when a Mastra release notes mention features not currently exercised, when investigating a regression that wasn't caught because there was no test for that path, or any time you are about to write or modify a `.test.ts` / `.spec.ts` file under `tests/` or `tests-ui/`. This skill explains where tests live (`tests/` API vs `tests-ui/` UI), how to register fixtures in `src/mastra/`, how to update the COVERAGE.md tracking docs so the suite reflects reality, the assertion patterns that are banned because they pass against garbage data, and the self-audit pass to run before committing.
 ---
 
 # extend-smoke-coverage
@@ -270,6 +270,104 @@ Conventions that have paid off:
 - **Tag LLM-touching tests with `@llm`** so the matrix-level retry budget
   applies (see `playwright.config.ts` / `vitest.config.ts`).
 
+### 5a. Probe before you assert
+
+Before writing any assertion, **run the endpoint once and capture the
+real response.** Don't write assertions from memory or from what the
+docs imply — assert against the actual bytes the server emits today.
+
+Cheap, disposable workflow:
+
+```ts
+// tests/_probe.test.ts — write, run, delete. Do NOT commit.
+import { describe, it } from 'vitest';
+import { fetchJson } from './utils.js';
+
+describe('probe', () => {
+  it('embedders', async () => {
+    const r = await fetchJson('/api/embedders');
+    console.log('EMBEDDERS', r.status, JSON.stringify(r.data).slice(0, 800));
+  });
+});
+```
+
+```bash
+pnpm test -- tests/_probe.test.ts 2>&1 | grep EMBEDDERS
+rm tests/_probe.test.ts   # delete before committing
+```
+
+Then write the real test against the response shape you actually saw —
+deterministic ids, exact error strings, full field-by-field structure.
+
+### 5b. Banned assertion patterns
+
+The whole point of smoke is to catch regressions. Weak assertions
+defeat that — they pass against any reasonably-shaped garbage. Reviewers
+(human and agentic) reject these patterns. If you find yourself writing
+one, stop and ask "what does this actually prove?"
+
+| ❌ Banned                                                              | ✅ Replace with |
+|------------------------------------------------------------------------|----------------|
+| `expect(typeof x).toBe('string')` as the only check                    | `expect(x).toBe('exact')` or `expect(x).toMatch(/substring/)` |
+| `expect([200, 404, 500]).toContain(res.status)`                        | Pick the one correct status. If it's genuinely unstable, file a framework bug. |
+| `expect(arr.length).toBeGreaterThan(0)` alone                          | Also assert one item's shape, and a deterministic id/value if available. |
+| `expect(data).toBeDefined()` without drilling in                       | Walk the structure with explicit field assertions. |
+| `expect(...).not.toThrow()` as the only assertion                      | Assert what the call returns or its observable side effect. |
+| `try { ... } catch { /* swallow */ }` inside test bodies               | Let unexpected errors fail the test. Use `await expect(...).rejects.toThrow(/msg/)` for expected throws. |
+| `fetchJson<any>(...)` in new code                                      | Type the response — missing fields fail at compile time. |
+| Error-body asserted only as `typeof error === 'string'`                | Assert the message contains the unknown id, missing field, or operation that failed. |
+| 400 body asserted without checking `issues[].field`                    | Validation responses carry structured `issues` — assert the offending field is named. |
+
+Concrete examples from real smoke fixes:
+
+```ts
+// ❌ Was passing against literally any 4xx-or-5xx
+expect([404, 500]).toContain(res.status);
+
+// ✅ Exact status + the id appears in the message
+expect(res.status).toBe(404);
+expect(data.error).toMatch(/does-not-exist-smoke/);
+```
+
+```ts
+// ❌ Passed even if `output` was empty or `usage` was missing fields
+expect(typeof data.id).toBe('string');
+expect(data.usage).toBeDefined();
+
+// ✅ Proves the LLM actually produced text and the token math is internally consistent
+const msg = data.output.find(o => o.type === 'message');
+const text = msg.content.find(c => c.type === 'output_text');
+expect(typeof text.text).toBe('string');
+expect(text.text.length).toBeGreaterThan(0);
+expect(data.usage.total_tokens).toBe(data.usage.input_tokens + data.usage.output_tokens);
+```
+
+### 5c. Self-audit before committing
+
+After writing tests but **before** running the full suite, run a focused
+self-audit. The cheapest way is a sub-agent pass with this exact prompt:
+
+> Read these new test files: `<list of files>`. For each assertion, ask:
+> "Would this still pass if the server returned empty, wrong, or
+> structurally-similar-but-garbage data?" Flag every assertion that
+> would pass against bad data. Check specifically for:
+>
+> - Bare `expect(typeof x).toBe(...)` as the only check on a field
+> - `[a, b].toContain(status)` accepting multiple statuses
+> - `length > 0` / `toBeDefined()` without follow-up shape assertions
+> - `fetchJson<any>(...)` instead of a typed response
+> - Error bodies asserted only as "is a string"
+> - 400 responses without `issues[].field` checks
+> - `try/catch` swallowing errors inside test bodies
+>
+> For each finding, name the file, line range, and a concrete tightened
+> assertion.
+
+Apply every flagged fix, then re-run the focused tests, then the full
+suite. Commit only after the audit comes back clean.
+
+This pass should also be run by reviewers on any smoke-coverage PR.
+
 ### 6. Run the test locally before committing
 
 ```bash
@@ -340,3 +438,10 @@ with reasoning if they're truly needed.
   the only reliable canary.
 - **Don't skip the full-suite run.** Single-file passes don't catch
   order-dependent or schema-poisoning regressions.
+- **Don't ship weak assertions.** See section 5b. `typeof x === 'string'`,
+  `[200, 500].toContain(status)`, `length > 0` alone, `toBeDefined()`
+  without drill-down, and `fetchJson<any>` all pass against broken
+  servers and are rejected in review.
+- **Don't skip the self-audit** in section 5c. New test files get one
+  pass over them before commit — that's the cheapest way to catch the
+  assertion you wrote at 2am that proves nothing.
