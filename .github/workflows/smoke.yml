@@ -259,6 +259,10 @@ jobs:
           NPM_TAG: ${{ needs.resolve.outputs.tag }}
           ZOD_VERSION: ${{ steps.versions.outputs.zod_resolved }}
           MASTRA_VERSIONS: ${{ steps.versions.outputs.mastra_versions }}
+          # Artifact name consumed by the SMOKE_FAILURE_CONTEXT thread reply so
+          # @Devin (or any agent tagged in the failure thread) can fetch logs
+          # via `gh run download $GITHUB_RUN_ID --name $ARTIFACT_NAME`.
+          ARTIFACT_NAME: smoke-test-results-zod${{ matrix.zod-version }}
 
       # ── Upload artifacts (backup) ──────────────────────────────────────
       - name: Upload test artifacts

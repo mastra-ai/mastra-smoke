@@ -20,6 +20,14 @@
  *   PUBLISH_RUN_URL  – link to the upstream "Publish to npm" run (workflow_run trigger)
  *   SMOKE_TRIGGER    – "publish" or "manual"
  *   NPM_TAG          – npm dist-tag that was smoked (e.g. alpha, latest)
+ *   GITHUB_REPOSITORY – e.g. "mastra-ai/mastra-smoke" (auto-set in Actions)
+ *   GITHUB_RUN_ID    – numeric run id (auto-set in Actions); used by the
+ *                      `SMOKE_FAILURE_CONTEXT` thread reply so an external
+ *                      debugging agent (e.g. Devin) can `gh run download` the
+ *                      artifacts when tagged in the failure thread.
+ *   ARTIFACT_NAME    – name of the per-matrix-leg artifact (e.g.
+ *                      "smoke-test-results-zod3"). When set, included in the
+ *                      context block so the agent knows which artifact to pull.
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
@@ -583,7 +591,107 @@ async function main() {
     }
   }
 
+  // Post a machine-readable context block in the failure thread so an
+  // external debugging agent (e.g. Devin) tagged on the failure has
+  // everything it needs to fetch artifacts, locate upstream source, and
+  // open a PR/issue. See .agents/skills/diagnose-smoke-failure/SKILL.md
+  // for the consumer-side workflow.
+  if (!isGreen && allFailures.length > 0) {
+    await postAgentContext(channelId, threadTs, allFailures, uiFlakes);
+  }
+
   console.log('Done.');
+}
+
+async function postAgentContext(
+  channelId: string,
+  threadTs: string,
+  failures: FailedTest[],
+  flakes: FlakyTest[],
+) {
+  const lines: string[] = ['SMOKE_FAILURE_CONTEXT'];
+
+  const repo = process.env.GITHUB_REPOSITORY || '';
+  const runId = process.env.GITHUB_RUN_ID || '';
+  const runUrl = process.env.WORKFLOW_RUN_URL || '';
+  const artifactName = process.env.ARTIFACT_NAME || '';
+  const zodVersion = process.env.ZOD_VERSION || '';
+  const npmTag = process.env.NPM_TAG || '';
+  const mastraVersions = process.env.MASTRA_VERSIONS || '';
+
+  if (repo) lines.push(`  repo: ${repo}`);
+  if (runId) lines.push(`  run_id: ${runId}`);
+  if (runUrl) lines.push(`  run_url: ${runUrl}`);
+  if (artifactName) lines.push(`  artifact_name: ${artifactName}`);
+  if (npmTag) lines.push(`  npm_tag: ${npmTag}`);
+  if (zodVersion) lines.push(`  zod_version: ${zodVersion}`);
+  if (mastraVersions) lines.push(`  packages_under_test: ${mastraVersions}`);
+
+  lines.push('  fetch_artifacts: |');
+  if (repo && runId && artifactName) {
+    lines.push(`    gh run download ${runId} --repo ${repo} --name ${artifactName}`);
+  } else {
+    lines.push('    (run_id / artifact_name not available — see run_url for artifacts)');
+  }
+
+  lines.push('  failures:');
+  for (const f of failures) {
+    lines.push(`    - source: ${f.source}`);
+    lines.push(`      file: ${f.file}`);
+    lines.push(`      title: ${JSON.stringify(f.title)}`);
+    // Truncate aggressively — Devin can pull the full message from
+    // reports/*-junit.xml in the artifact bundle.
+    const err = f.error.length > 240 ? f.error.slice(0, 240) + '…' : f.error;
+    lines.push(`      error: ${JSON.stringify(err)}`);
+  }
+
+  if (flakes.length > 0) {
+    lines.push('  flakes:');
+    for (const f of flakes) {
+      lines.push(`    - source: ${f.source}`);
+      lines.push(`      file: ${f.file}`);
+      lines.push(`      title: ${JSON.stringify(f.title)}`);
+      lines.push(`      retries: ${f.retries}`);
+    }
+  }
+
+  lines.push('END_SMOKE_FAILURE_CONTEXT');
+
+  // Wrapped in a triple-backtick code block so Slack renders it as
+  // monospace and the agent can copy/parse it verbatim. Slack's section
+  // text limit is 3000 chars; truncate the body (keeping the END marker)
+  // if we get close.
+  const body = lines.join('\n');
+  const maxBody = 2900;
+  const truncated = body.length > maxBody
+    ? body.slice(0, maxBody - 60) + '\n  … (truncated — see artifact)\nEND_SMOKE_FAILURE_CONTEXT'
+    : body;
+
+  const text = '```\n' + truncated + '\n```';
+
+  await slackApi('chat.postMessage', {
+    channel: channelId,
+    thread_ts: threadTs,
+    text,
+    // Use blocks so Slack doesn't auto-unfurl URLs in the YAML-ish body.
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text },
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: '🤖 _Tag `@Devin` in this thread to auto-diagnose. Devin loads `.agents/skills/diagnose-smoke-failure/SKILL.md` to handle the rest._',
+          },
+        ],
+      },
+    ],
+  });
+
+  console.log('Posted SMOKE_FAILURE_CONTEXT thread reply');
 }
 
 main().catch(err => {
