@@ -1,6 +1,6 @@
 # API Smoke Test Coverage
 
-> 313 tests across 62 test files — last updated 2026-05-21
+> 362 tests across 68 test files — last updated 2026-05-21
 
 **Test runner:** Vitest
 **Test dir:** `tests/`
@@ -14,7 +14,7 @@
 | Section          | Tests | Status |
 |------------------|-------|--------|
 | Workflows        | 73    | Complete |
-| Agents           | 30    | Complete (+4 extras: instructions enhance, model set/reset, models reorder, clone gating) |
+| Agents           | 35    | Complete (+4 extras: instructions enhance, model set/reset, models reorder, clone gating); voice/speakers ⚠️ partial — 5 shape-only tests against a no-voice agent, real speak/listen paths untested |
 | Datasets         | 19    | Complete |
 | Workspace        | 25    | Complete (+3 skills-sh registry: search/popular/preview) |
 | MCP              | 17    | Complete |
@@ -22,8 +22,9 @@
 | Tools            | 15    | Complete |
 | Memory           | 18    | Complete (+4 extras: thread clone, search, observational-memory gating, buffer-status gating) |
 | Scores           | 11    | Complete |
-| Observability    | 11    | Complete (+4 extras: branches, traces/light gating, trajectory, span scores) |
-| Stored entities  | 38    | NEW — full CRUD for agents/skills/scorers/mcp-clients/prompt-blocks/workspaces + agent versions lifecycle (activate, restore, version count) |
+| Observability    | 47    | Complete (+4 extras: branches, traces/light gating, trajectory, span scores; +10 discovery; +16 aggregations; +7 feedback/scores ingest/read; +3 logs; +7 traces); traces/score ⚠️ partial — only 400/500 negative cases, happy path untested (no registered trace-scorer) |
+| Editor builder   | 3/7   | ⚠️ Partial — registries/settings/infrastructure covered; popular/search/preview/install untested (need `skills-sh` registry enabled in fixture) |
+| Stored entities  | 41    | Agents full versions/compare diff; skills/mcp-clients/prompt-blocks/scorers ⚠️ partial — only 400 (missing params) and 404 (unknown UUID) probes, no real v1→v2 diff lifecycle |
 | Schedules        | 2     | NEW — list + empty-shape sanity |
 | Background tasks | 2     | NEW — list shape |
 | System           | 2     | NEW — `/system/api-schema` + `/system/packages` |
@@ -35,7 +36,7 @@
 | Vectors          | 1     | NEW — `/api/vectors` empty-registry shape |
 | Vector Store     | 0/7   | 🔒 Needs embedder + vector config (per-index endpoints) |
 | Logs             | 0/3   | 🔒 Needs logger transports |
-| **Total**        | **313** |      |
+| **Total**        | **362** |      |
 
 ### Coverage by `/api/*` route group (cross-reference)
 
@@ -62,6 +63,7 @@
 | `/api/a2a/:agentId`, `/.well-known/agent-card.json` | `tests/a2a/a2a.test.ts` |
 | `/api/embedders` | `tests/embedders/embedders.test.ts` |
 | `/api/vectors` | `tests/vectors/vectors.test.ts` |
+| `/api/editor/builder/*` | `tests/editor/builder.test.ts` |
 
 ---
 
@@ -214,7 +216,7 @@
 
 ---
 
-### Agents (26 tests, 8 files)
+### Agents (35 tests, 10 files)
 
 #### Discovery — `agents.test.ts` (4 tests)
 
@@ -344,7 +346,7 @@
 
 ---
 
-### Observability (7 tests, 1 file)
+### Observability (47 tests, 6 files)
 
 #### Traces — `traces.test.ts` (7 tests)
 
@@ -357,6 +359,49 @@
 | Pagination — page 0 and page 1 return distinct spans | ✅ |
 | Get trace by ID — all spans share traceId, span shape verified | ✅ |
 | 404 for non-existent trace | ✅ |
+
+#### Discovery — `discovery.test.ts` (10 tests)
+
+| Test | Status |
+|------|--------|
+| GET `/observability/environments` returns array | ✅ |
+| GET `/observability/entity-types` returns array | ✅ |
+| GET `/observability/entity-names` returns array | ✅ |
+| GET `/observability/service-names` returns array | ✅ |
+| GET `/observability/tags` returns object | ✅ |
+| GET `/observability/metric-names` returns array | ✅ |
+| GET `/observability/metric-label-keys` (200 with valid metricName, 400 without) | ✅ |
+| GET `/observability/metric-label-values` (200 with valid metricName+labelKey, 400 without) | ✅ |
+
+#### Aggregations — `aggregations.test.ts` (16 tests, score/feedback/metric aggregate/breakdown/percentiles/timeseries)
+
+| Test | Status |
+|------|--------|
+| POST `/scores/aggregate` empty-store null, 400 on missing scorerId | ✅ |
+| POST `/scores/breakdown` empty groups, 400 on missing groupBy | ✅ |
+| POST `/scores/percentiles` one series per requested percentile, empty points | ✅ |
+| POST `/scores/timeseries` series named after scorerId, empty points | ✅ |
+| POST `/feedback/aggregate` empty-store value=0, 400 on missing feedbackType | ✅ |
+| POST `/feedback/breakdown` empty groups | ✅ |
+| POST `/feedback/percentiles` one series per requested percentile, empty points | ✅ |
+| POST `/feedback/timeseries` series named after feedbackType, empty points | ✅ |
+| POST `/metrics/aggregate` empty-store null + costUnit/estimatedCost null, 400 on missing name | ✅ |
+| POST `/metrics/breakdown` empty groups | ✅ |
+| POST `/metrics/percentiles` one series per requested percentile, empty points | ✅ |
+| POST `/metrics/timeseries` one series per name, costUnit field, empty points | ✅ |
+
+#### Feedback + Scores ingest — `feedback.test.ts` (7 tests)
+
+| Test | Status |
+|------|--------|
+| POST `/observability/feedback` rejects missing body with 400 | ✅ |
+| POST `/observability/feedback` persists row that appears in GET `/feedback` | ✅ |
+| POST `/observability/scores` rejects missing body with 400 | ✅ |
+| POST `/observability/scores` persists row that appears in GET `/scores` | ✅ |
+| GET `/observability/scores/:id` returns `{ score: null }` for unknown id | ✅ |
+| POST `/observability/traces/score` rejects missing scorerName+targets with 400 | ✅ |
+| POST `/observability/traces/score` errors with scorer name in message when scorer not registered | 🔒 negative-only |
+| POST `/observability/traces/score` — happy path with a registered trace-scorer | ⬜ untested (no scorer fixture) |
 
 ---
 
@@ -540,6 +585,63 @@
 
 ---
 
+### Editor Builder — `tests/editor/builder.test.ts` (3 routes covered + 4 disabled-gating probes)
+
+> ⚠️ **Partial coverage.** Only `registries`, `settings`, and `infrastructure` are
+> exercised against their real implementation. `popular`, `search`, `preview`,
+> and `install` are reachable but only tested in the *disabled* state because
+> the fixture has `skills-sh` registry `enabled: false`. The actual feature
+> code paths (registry lookup, GitHub proxy, install flow) are untested.
+
+| Test | Status |
+|------|--------|
+| `GET /editor/builder/registries` lists skills-sh as disabled | ✅ |
+| `GET /editor/builder/settings` reflects disabled model policy | ✅ |
+| `GET /editor/builder/infrastructure` reports smoke-stub channel + unregistered browser/workspace | ✅ |
+| `GET /editor/builder/registries/skills-sh/popular` returns 404 "Registry not found" when disabled | 🔒 disabled-only |
+| `GET /editor/builder/registries/skills-sh/search` returns 404 "Registry not found" when disabled | 🔒 disabled-only |
+| `GET /editor/builder/registries/skills-sh/preview` rejects missing owner/repo with structured 400 | 🔒 disabled-only |
+| `POST /editor/builder/registries/skills-sh/install` rejects missing body with structured 400 | 🔒 disabled-only |
+
+---
+
+### Stored Agents — versions/compare — `tests/stored/versions-compare.test.ts` (4 tests)
+
+> ⚠️ **Only stored *agents* has a real v1→v2 lifecycle test.** The
+> `versions/compare` routes on `/stored/skills/*`, `/stored/mcp-clients/*`,
+> `/stored/prompt-blocks/*`, and `/stored/scorers/*` are *not* covered here.
+> Probing them requires a valid create payload per entity type (skills runtime
+> spec, scorer judge config, mcp-client transport URL, prompt-block body); the
+> existing per-type CRUD specs cover create/update but not diffing.
+
+| Test | Status |
+|------|--------|
+| Creates v1, patches to produce a distinct v2 | ✅ |
+| `GET /stored/agents/:id/versions/compare` rejects missing from/to with structured 400 | ✅ |
+| Returns 404 with "Version with id … not found" for unknown version id | ✅ |
+| Returns a diff with `instructions` field and from/to version metadata | ✅ |
+
+---
+
+### Agents — voice — `tests/agents/voice.test.ts` (5 tests)
+
+> ⚠️ **Shape-only smoke against a no-voice agent.** Every assertion is "empty
+> array" or `{ enabled: false }` because the fixture agent has no voice
+> provider configured. The actual `speak`/`listen` code paths in
+> `@mastra/voice-*` are untested. Treat this row as 🔒 — real coverage needs
+> an `OpenAIVoice` (or similar) provider wired in `src/mastra/` plus an API
+> key in the smoke env.
+
+| Test | Status |
+|------|--------|
+| `GET /agents/:id/speakers` returns `[]` when no voice provider is configured | 🔒 empty-provider |
+| `GET /agents/:id/voice/speakers` returns `[]` when no voice provider is configured | 🔒 empty-provider |
+| `GET /agents/:id/voice/listener` returns `{ enabled: false }` | 🔒 empty-provider |
+| `POST /agents/:id/voice/listen` rejects empty body with 400 "Audio data is required" | ✅ |
+| `GET /agents/:id/speakers` returns 404 for an unknown agent (error names the id) | ✅ |
+
+---
+
 ## ⬜ What's Not Tested
 
 ### Vector Store — 🔒 Needs embedder + vector config
@@ -575,16 +677,21 @@ still require a real vector store to be wired up in the smoke fixture.
 | `POST /agents/:agentId/instructions/enhance` | Non-deterministic LLM output | Low |
 | `POST /agents/:agentId/model` (update/get/reset) | Requires stored agents | Low |
 | `GET /agents/:agentId/skills/:skillName` | Requires workspace/skills setup | Low |
+| `POST /agents/:agentId/voice/speak` — real speak path | Needs an `OpenAIVoice` (or similar) provider + API key in fixture | Medium |
+| `POST /agents/:agentId/voice/listen` — real listen path (with audio) | Needs voice provider + API key + audio fixture | Medium |
+| `GET /agents/:agentId/voice/speakers` — non-empty speakers | Needs voice provider configured | Medium |
 
 ### Observability — Untested Endpoints
 
 | Endpoint | Priority |
 |----------|----------|
-| `POST /observability/traces/score` — Score a trace | Low |
-| `POST /observability/metrics/*` — Aggregate, breakdown, timeseries, percentiles | Low |
-| `GET /observability/discovery/*` — Metric names, labels, entity types | Low |
+| `POST /observability/traces/score` — End-to-end happy path (needs a registered scorer fixture in `src/mastra/`; current tests only assert 400/500 negatives) | Medium |
+| `GET /observability/feedback/:feedbackId` — fetch by id | Low |
+| `DELETE /observability/feedback/:feedbackId` — delete by id | Low |
+| `GET /observability/scores/:scoreId/scoring-trace` — scoring trace by score id | Low |
+| `GET /observability/scoring-traces/:scoringTraceId` — scoring trace by id | Low |
 
-> Requires telemetry/tracing configuration.
+> Aggregation, discovery, and ingest paths are all covered as of 2026-05-21.
 
 ### Memory — Untested Endpoints
 
@@ -604,6 +711,24 @@ still require a real vector store to be wired up in the smoke fixture.
 | `POST /mcp/:serverId/messages` — SSE message forwarding | Low |
 | MCP resources (list, read, subscribe) | Medium |
 | MCP prompts (list, get) | Medium |
+
+### Editor Builder — Untested Endpoints
+
+| Endpoint | Why | Priority |
+|----------|-----|----------|
+| `GET /editor/builder/registries/skills-sh/popular` — happy path | Fixture has `skills-sh` registry disabled; needs enabling | Medium |
+| `GET /editor/builder/registries/skills-sh/search` — happy path | Same as above | Medium |
+| `GET /editor/builder/registries/skills-sh/preview` — happy path | Same; also needs valid `owner`/`repo`/`path` GitHub target | Medium |
+| `POST /editor/builder/registries/skills-sh/install` — happy path | Same; also needs a valid skill repo to install from | Medium |
+
+### Stored Entities — Untested Endpoints
+
+| Endpoint | Why | Priority |
+|----------|-----|----------|
+| `GET /stored/skills/:id/versions/compare` — v1→v2 diff | Needs valid skill create payload (runtime spec) | Medium |
+| `GET /stored/mcp-clients/:id/versions/compare` — v1→v2 diff | Needs valid mcp-client create payload (transport URL) | Medium |
+| `GET /stored/prompt-blocks/:id/versions/compare` — v1→v2 diff | Needs valid prompt-block create payload | Medium |
+| `GET /stored/scorers/:id/versions/compare` — v1→v2 diff | Needs valid scorer create payload (judge config) | Medium |
 
 ### Workspace — Untested Endpoints
 
