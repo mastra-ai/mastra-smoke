@@ -1,6 +1,6 @@
 # API Smoke Test Coverage
 
-> 285 tests across 56 test files — last updated 2026-05-18
+> 312 tests across 62 test files — last updated 2026-05-21
 
 **Test runner:** Vitest
 **Test dir:** `tests/`
@@ -29,9 +29,13 @@
 | System           | 2     | NEW — `/system/api-schema` + `/system/packages` |
 | Auth             | 2     | NEW — `/auth/capabilities` + `/auth/me` gated shape |
 | Providers        | 4     | NEW — tool-providers/processor-providers gated, channels/platforms empty |
-| Vector Store     | 0/8   | 🔒 Needs embedder + vector config |
+| OpenAI compat    | 10    | NEW — `/api/v1/conversations` + `/api/v1/responses` |
+| A2A              | 4     | NEW — agent card + `/api/a2a/:agentId` JSON-RPC message/send |
+| Embedders        | 1     | NEW — `/api/embedders` registry shape |
+| Vectors          | 1     | NEW — `/api/vectors` empty-registry shape |
+| Vector Store     | 0/7   | 🔒 Needs embedder + vector config (per-index endpoints) |
 | Logs             | 0/3   | 🔒 Needs logger transports |
-| **Total**        | **280** |      |
+| **Total**        | **312** |      |
 
 ### Coverage by `/api/*` route group (cross-reference)
 
@@ -54,6 +58,10 @@
 | `/api/mcp/*` | `tests/mcp/*` |
 | `/api/processors/*` | `tests/processors/*` |
 | `/api/tools/*` | `tests/tools/*` |
+| `/api/v1/conversations/*`, `/api/v1/responses/*` | `tests/v1/openai-compat.test.ts` |
+| `/api/a2a/:agentId`, `/.well-known/agent-card.json` | `tests/a2a/a2a.test.ts` |
+| `/api/embedders` | `tests/embedders/embedders.test.ts` |
+| `/api/vectors` | `tests/vectors/vectors.test.ts` |
 
 ---
 
@@ -496,14 +504,49 @@
 
 ---
 
+### OpenAI Compat — `tests/v1/openai-compat.test.ts` (10 tests)
+
+| Test | Status |
+|------|--------|
+| `POST /v1/conversations` rejects body without `agent_id` (400) | ✅ |
+| `POST /v1/conversations` creates a conversation and echoes metadata | ✅ |
+| `GET /v1/conversations/:id` returns the created conversation | ✅ |
+| `GET /v1/conversations/:id/items` returns an empty list initially | ✅ |
+| `DELETE /v1/conversations/:id` deletes and 404s on subsequent GET | ✅ |
+| Unknown conversation returns 404 | ✅ |
+| `POST /v1/responses` rejects body without `input` (400) | ✅ |
+| `POST /v1/responses` returns a completed response with `output_text` | ✅ |
+| `GET /v1/responses/:id` returns the response after creation | ✅ |
+| Unknown response returns 404 | ✅ |
+
+### A2A — `tests/a2a/a2a.test.ts` (4 tests)
+
+| Test | Status |
+|------|--------|
+| `GET /.well-known/agent-card.json` exposes the discovery card | ✅ |
+| `POST /api/a2a/:agentId` `message/send` returns `result.status.state === 'completed'` | ✅ |
+| `POST /api/a2a/:agentId` rejects malformed JSON-RPC payloads | ✅ |
+| Unknown agent ID surfaces an error | ✅ |
+
+### Embedders / Vectors — `tests/embedders/`, `tests/vectors/` (2 tests)
+
+| Test | Status |
+|------|--------|
+| `GET /embedders` returns a non-empty registry with id/provider/dimensions | ✅ |
+| `GET /vectors` returns an empty registry in the smoke fixture | ✅ |
+
+---
+
 ## ⬜ What's Not Tested
 
 ### Vector Store — 🔒 Needs embedder + vector config
 
+`GET /vectors` and `GET /embedders` are covered as empty/registry shape checks
+in `tests/vectors/` and `tests/embedders/`. The per-index CRUD endpoints below
+still require a real vector store to be wired up in the smoke fixture.
+
 | Endpoint | Priority |
 |----------|----------|
-| `GET /vectors` — List vector stores | High |
-| `GET /embedders` — List embedders | High |
 | `POST /vector/:name/create-index` — Create vector index | High |
 | `GET /vector/:name/indexes` — List indexes | High |
 | `GET /vector/:name/indexes/:indexName` — Get index details | High |
