@@ -1,6 +1,6 @@
 # API Smoke Test Coverage
 
-> 362 tests across 68 test files — last updated 2026-05-21
+> 362 tests across 68 test files — last updated 2026-05-22
 
 **Test runner:** Vitest
 **Test dir:** `tests/`
@@ -13,23 +13,23 @@
 
 | Section          | Tests | Status |
 |------------------|-------|--------|
-| Workflows        | 73    | Complete |
+| Workflows        | 68    | Complete |
 | Agents           | 35    | Complete (+4 extras: instructions enhance, model set/reset, models reorder, clone gating); voice/speakers ⚠️ partial — 5 shape-only tests against a no-voice agent, real speak/listen paths untested |
 | Datasets         | 19    | Complete |
-| Workspace        | 25    | Complete (+3 skills-sh registry: search/popular/preview) |
+| Workspace        | 27    | Complete (+3 skills-sh registry: search/popular/preview) |
 | MCP              | 17    | Complete |
 | Processors       | 17    | Complete |
 | Tools            | 15    | Complete |
-| Memory           | 18    | Complete (+4 extras: thread clone, search, observational-memory gating, buffer-status gating) |
+| Memory           | 20    | Complete (+4 extras: thread clone, search, observational-memory gating, buffer-status gating) |
 | Scores           | 11    | Complete |
 | Observability    | 47    | Complete (+4 extras: branches, traces/light gating, trajectory, span scores; +10 discovery; +16 aggregations; +7 feedback/scores ingest/read; +3 logs; +7 traces); traces/score ⚠️ partial — only 400/500 negative cases, happy path untested (no registered trace-scorer) |
-| Editor builder   | 3/7   | ⚠️ Partial — registries/settings/infrastructure covered; popular/search/preview/install untested (need `skills-sh` registry enabled in fixture) |
+| Editor builder   | 7     | ⚠️ Partial — 7 tests covering 3 of 7 routes (registries/settings/infrastructure); popular/search/preview/install untested (need `skills-sh` registry enabled in fixture) |
 | Stored entities  | 41    | Agents full versions/compare diff; skills/mcp-clients/prompt-blocks/scorers ⚠️ partial — only 400 (missing params) and 404 (unknown UUID) probes, no real v1→v2 diff lifecycle |
-| Schedules        | 2     | NEW — list + empty-shape sanity |
-| Background tasks | 2     | NEW — list shape |
-| System           | 2     | NEW — `/system/api-schema` + `/system/packages` |
-| Auth             | 2     | NEW — `/auth/capabilities` + `/auth/me` gated shape |
-| Providers        | 4     | NEW — tool-providers/processor-providers gated, channels/platforms empty |
+| Schedules        | 6     | list + empty-shape sanity + lifecycle |
+| Background tasks | 3     | list shape + create/get |
+| System           | 5     | `/system/api-schema` + `/system/packages` + channels gated |
+| Auth             | 2     | `/auth/capabilities` + `/auth/me` gated shape |
+| Providers        | 5     | tool-providers/processor-providers gated, platforms empty |
 | OpenAI compat    | 10    | NEW — `/api/v1/conversations` + `/api/v1/responses` |
 | A2A              | 5     | NEW — agent card + `/api/a2a/:agentId` JSON-RPC message/send |
 | Embedders        | 1     | NEW — `/api/embedders` registry shape |
@@ -48,13 +48,13 @@
 | `/api/observability/*` | `tests/observability/*`, `tests/observability/extras.test.ts` |
 | `/api/datasets/*` | `tests/datasets/*` |
 | `/api/workspaces/*` | `tests/workspaces/*`, `tests/workspaces/skills-registry.test.ts` |
-| `/api/stored/*` | `tests/stored/*` (7 files) |
+| `/api/stored/*` | `tests/stored/*` (8 files) |
 | `/api/schedules/*` | `tests/schedules/schedules.test.ts` |
 | `/api/background-tasks/*` | `tests/background-tasks/background-tasks.test.ts` |
 | `/api/system/*` | `tests/system/system.test.ts` |
 | `/api/auth/*` | `tests/auth/capabilities.test.ts` |
 | `/api/tool-providers/*`, `/api/processor-providers/*` | `tests/providers/*` |
-| `/api/channels/*` | `tests/providers/channels.test.ts` |
+| `/api/channels/*` | `tests/system/channels.test.ts` |
 | `/api/scores/*` | `tests/scores/*` |
 | `/api/mcp/*` | `tests/mcp/*` |
 | `/api/processors/*` | `tests/processors/*` |
@@ -69,7 +69,7 @@
 
 ## ✅ What's Tested
 
-### Workflows (73 tests, 17 files)
+### Workflows (68 tests, 17 files)
 
 #### Basic Execution — `basic.test.ts` (7 tests)
 
@@ -752,7 +752,6 @@ still require a real vector store to be wired up in the smoke fixture.
 
 | Area | Endpoints | Requires | Priority |
 |------|-----------|----------|----------|
-| A2A Protocol | 2 routes | — | Medium |
 | Processor Providers | 2 routes | Editor config | Low |
 | Auth | 4 routes | Auth provider | Low |
 | System | 1 route | — | Low |
@@ -770,6 +769,8 @@ still require a real vector store to be wired up in the smoke fixture.
 1. **Vector Store** — Core RAG primitive, 8 endpoints, requires embedder + vector config
 2. **Logs** — 3 endpoints, minimal setup, validates telemetry plumbing
 3. **Memory search + clone** — 2 endpoints, extends existing memory coverage
-4. **A2A Protocol** — 2 endpoints, validates agent interoperability
-5. **Dataset Experiments** — 4 endpoints, end-to-end eval pipeline
-6. **MCP resources/prompts** — Extends MCP coverage with resource and prompt features
+4. **Memory Network** — `/memory/network/threads`, `/save-messages`, `/messages/delete`, `/status` — 4 untested routes
+5. **Workflows event/restart** — `/workflows/events`, `/restart-all-active-workflow-runs(-async)`, `/runs/:runId/steps/execute` — 4 untested routes
+6. **Tool-call approval generate** — `/agents/:id/approve-tool-call-generate`, `/decline-tool-call-generate` — 2 untested routes
+7. **Dataset Experiments** — 4 endpoints, end-to-end eval pipeline
+8. **MCP resources/prompts** — Extends MCP coverage with resource and prompt features
