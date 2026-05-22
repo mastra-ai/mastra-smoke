@@ -27,9 +27,9 @@ Tracking document for Studio/Playground E2E smoke tests.
 | Scorers                | 2    | 0    | 0       |       |
 | Processors             | 3    | 0    | 0       |       |
 | Workspaces             | 5    | 2    | 0       |       |
-| CMS — Prompts          | 2    | 0    | 0       | NEW — `/prompts` list empty-state + `/cms/prompts/create` wizard form fields |
-| CMS — Agents           | 1    | 0    | 0       | NEW — `/cms/agents/create` Identity step + disabled "Create agent" submit |
-| CMS — Scorers          | 1    | 0    | 0       | NEW — `/cms/scorers/create` Configuration + Score Range + Instructions |
+| CMS — Prompts          | 2    | 0    | 0       | `/prompts` list empty-state + `/cms/prompts/create` wizard form fields. Create-page test conditionally skips if the page 5xx's (not currently in smoke fixture). |
+| CMS — Agents           | 1    | 0    | 0       | `/cms/agents/create` Identity step + disabled "Create agent" submit. Conditionally skips if the page 5xx's. |
+| CMS — Scorers          | 1    | 0    | 0       | `/cms/scorers/create` Configuration + Score Range + Instructions. Conditionally skips if the page 5xx's. |
 | Schedules              | 1    | 0    | 0       | NEW — `/workflows/schedules` heading |
 | Logs                   | 1    | 0    | 0       | NEW — `/logs` heading + "Last 24 hours" + "Add Filter" controls |
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
