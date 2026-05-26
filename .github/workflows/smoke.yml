@@ -206,7 +206,7 @@ jobs:
 
       # ── Build ───────────────────────────────────────────────────────────
       - name: Build project
-        run: pnpm build:studio
+        run: pnpm build
 
       # ── Playwright browsers ────────────────────────────────────────────
       - name: Install Playwright browsers
