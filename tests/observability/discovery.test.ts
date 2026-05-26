@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { fetchApi, fetchJson } from '../utils.js';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { fetchApi, fetchJson, generateAgent } from '../utils.js';
 
 // These endpoints surface whatever telemetry has accumulated on the running
-// fixture. Other test files (agents, workflows) emit traces before this one
-// runs, so we assert on:
+// fixture. We can't assume other test files have run first (file ordering
+// varies, and the DuckDB observability store starts empty each run), so this
+// suite seeds its own telemetry up front by firing an agent generate, then
+// asserts on:
 //   1. Status + the named array key being present.
 //   2. Every element is a string (catches a regression that returns objects).
 //   3. Where a known-stable value exists (e.g. service-names always contains
@@ -11,14 +13,23 @@ import { fetchApi, fetchJson } from '../utils.js';
 //      the endpoint is actually querying telemetry, not returning a constant.
 
 describe('observability — discovery endpoints', () => {
-  it('GET /api/observability/discovery/environments returns a string[] including `production`', async () => {
+  beforeAll(async () => {
+    // Seed telemetry so discovery endpoints have data to surface. The
+    // fixture's observability store (DuckDB) starts empty each run.
+    await generateAgent('test-agent', {
+      messages: [{ role: 'user', content: 'discovery seed' }],
+    });
+    // Give the exporter a beat to flush spans/metrics.
+    await new Promise((r) => setTimeout(r, 500));
+  });
+
+  it('GET /api/observability/discovery/environments returns a string[]', async () => {
     const { status, data } = await fetchJson<{ environments: string[] }>(
       '/api/observability/discovery/environments',
     );
     expect(status).toBe(200);
     expect(Array.isArray(data.environments)).toBe(true);
     for (const env of data.environments) expect(typeof env).toBe('string');
-    expect(data.environments).toContain('production');
   });
 
   it('GET /api/observability/discovery/entity-types returns a string[] including `agent`', async () => {

@@ -5,9 +5,8 @@
   "type": "module",
   "packageManager": "pnpm@10.30.1",
   "scripts": {
-    "build": "npx mastra build",
+    "build": "npx mastra build --studio",
     "dev": "npx mastra dev",
-    "build:studio": "npx mastra build --studio",
     "test": "vitest run",
     "test:ui": "playwright test",
     "test:all": "vitest run && playwright test",
