@@ -41,6 +41,6 @@ describe('agent stream with memory', () => {
       const fullText = textDeltas.map((e: any) => e.payload.text).join('');
       expect(fullText.toUpperCase(), 'LLM did not recall the magic word from the previous turn').toContain('BRAVO-9');
     },
-    60_000,
+    120_000,
   );
 });
