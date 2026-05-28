@@ -167,8 +167,11 @@ test.describe('Agent Features', () => {
     // Expand the badge to reveal its inner content
     await agentBadge.getByRole('button').first().click();
 
-    // The expanded content should contain the sub-agent's response about mangoes
-    await expect(agentBadge).toContainText(/mango/i);
+    // The expanded content should contain the sub-agent's response about mangoes.
+    // Use the same 30s LLM-stream timeout as the sibling assertions — the helper
+    // agent's reply streams into the expanded badge and the default 5s racks up
+    // against tail latency, which has produced recurring flakes in CI.
+    await expect(agentBadge).toContainText(/mango/i, { timeout: 30_000 });
 
     // The final assistant response should contain the delegated result
     const assistantMsg = await waitForAssistantMessage(page);
