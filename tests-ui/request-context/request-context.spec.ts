@@ -1,5 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+// Studio's chat composer now sends messages to the agent `signals` endpoint
+// (subscription model) instead of the old `/stream` route. The request context
+// is nested under `ifIdle.streamOptions.requestContext` in that body.
+const SIGNALS_ROUTE = /\/api\/agents\/test-agent\/signals$/;
+
+type SignalsBody = {
+  ifIdle?: { streamOptions?: { requestContext?: Record<string, unknown> } };
+};
+
+function extractRequestContext(body: SignalsBody | null): Record<string, unknown> | undefined {
+  return body?.ifIdle?.streamOptions?.requestContext;
+}
+
 test.describe('Request Context', () => {
   test('request context page displays editor and saves JSON', async ({ page }) => {
     await page.goto('/request-context');
@@ -48,15 +61,15 @@ test.describe('Request Context', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Request context saved successfully')).toBeVisible({ timeout: 5_000 });
 
-    // 2. Navigate to agent chat and intercept the stream call
+    // 2. Navigate to agent chat and intercept the signals call
     await page.goto('/agents/test-agent/chat/new');
     await expect(page.getByRole('heading', { name: 'Test Agent' })).toBeVisible({ timeout: 10_000 });
 
-    // Intercept the POST to the agent stream endpoint. The streamed request body
+    // Intercept the POST to the agent signals endpoint. The streamed request body
     // is only readable via route.request().postData() during interception — passive
     // request listeners see an empty body.
-    let capturedBody: Record<string, unknown> | null = null;
-    await page.route(/\/api\/agents\/test-agent\/stream(-until-idle)?$/, async (route) => {
+    let capturedBody: SignalsBody | null = null;
+    await page.route(SIGNALS_ROUTE, async (route) => {
       const request = route.request();
       try {
         capturedBody = JSON.parse(request.postData() ?? '{}');
@@ -72,19 +85,19 @@ test.describe('Request Context', () => {
     await chatInput.fill('say hello');
     await chatInput.press('Enter');
 
-    // Wait for the stream request to be captured
+    // Wait for the signals request to be captured
     await expect(async () => {
       expect(capturedBody).not.toBeNull();
     }).toPass({ timeout: 30_000 });
 
     // Verify requestContext was included in the body
-    const rc = capturedBody!.requestContext as Record<string, unknown>;
+    const rc = extractRequestContext(capturedBody);
     expect(rc).toBeDefined();
-    expect(rc.tenantId).toBe('e2e-tenant-42');
-    expect(rc.env).toBe('test');
+    expect(rc!.tenantId).toBe('e2e-tenant-42');
+    expect(rc!.env).toBe('test');
 
     // 3. Remove the request context via the UI
-    await page.unroute(/\/api\/agents\/test-agent\/stream(-until-idle)?$/);
+    await page.unroute(SIGNALS_ROUTE);
     await page.goto('/request-context');
     const editorClear = page.getByRole('textbox').and(page.locator('.cm-content'));
     await expect(editorClear).toBeVisible();
@@ -98,11 +111,11 @@ test.describe('Request Context', () => {
     await expect(page.getByText('Request context saved successfully')).toBeVisible({ timeout: 5_000 });
 
     // 4. Navigate to agent chat again and verify requestContext is empty
-    let capturedBodyAfter: Record<string, unknown> | null = null;
+    let capturedBodyAfter: SignalsBody | null = null;
     await page.goto('/agents/test-agent/chat/new');
     await expect(page.getByRole('heading', { name: 'Test Agent' })).toBeVisible({ timeout: 10_000 });
 
-    await page.route(/\/api\/agents\/test-agent\/stream(-until-idle)?$/, async (route) => {
+    await page.route(SIGNALS_ROUTE, async (route) => {
       const request = route.request();
       try {
         capturedBodyAfter = JSON.parse(request.postData() ?? '{}');
@@ -122,8 +135,8 @@ test.describe('Request Context', () => {
 
     // RequestContext should be an empty object — the app always sends the field,
     // but after clearing via the UI it should contain no keys
-    const rcAfter = capturedBodyAfter!.requestContext as Record<string, unknown>;
+    const rcAfter = extractRequestContext(capturedBodyAfter);
     expect(rcAfter).toBeDefined();
-    expect(Object.keys(rcAfter)).toHaveLength(0);
+    expect(Object.keys(rcAfter!)).toHaveLength(0);
   });
 });

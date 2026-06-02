@@ -1,20 +1,30 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { fillAndSend, waitForAssistantMessage } from '../helpers';
+
+/**
+ * Open the Model settings popover dialog. Studio moved model settings from a
+ * right-panel tab to a composer button that opens a dialog containing the
+ * chat-method radios, sliders, Reset and Advanced Settings.
+ */
+async function openModelSettings(page: Page) {
+  await page.getByRole('button', { name: 'Model settings' }).click();
+  await expect(page.getByRole('radio', { name: 'Generate' })).toBeVisible({ timeout: 5_000 });
+}
 
 test.describe('Agent Features', () => {
   test('model settings tab shows controls and persists chat method', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
 
-    // Switch to Model Settings tab
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    // Open the Model settings dialog
+    await openModelSettings(page);
 
     // Chat Method radio group
     await expect(page.getByRole('radio', { name: 'Generate' })).toBeVisible();
-    await expect(page.getByRole('radio', { name: 'Stream' })).toBeVisible();
+    await expect(page.getByRole('radio', { name: 'Stream subscription (default)' })).toBeVisible();
     await expect(page.getByRole('radio', { name: 'Network' })).toBeVisible();
 
-    // Stream should be selected by default
-    await expect(page.getByRole('radio', { name: 'Stream' })).toBeChecked();
+    // Stream subscription should be selected by default
+    await expect(page.getByRole('radio', { name: 'Stream subscription (default)' })).toBeChecked();
 
     // Require Tool Approval checkbox
     await expect(page.getByRole('checkbox')).toBeVisible();
@@ -51,7 +61,7 @@ test.describe('Agent Features', () => {
   test('model settings: network mode enabled only with sub-agents and memory', async ({ page }) => {
     // networkAgent has both memory and sub-agents — Network should be enabled
     await page.goto('/agents/network-agent/chat/new');
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    await openModelSettings(page);
 
     const networkRadio = page.getByRole('radio', { name: 'Network' });
     await expect(networkRadio).toBeVisible();
@@ -59,7 +69,7 @@ test.describe('Agent Features', () => {
 
     // testAgent has memory but no sub-agents — Network should be disabled
     await page.goto('/agents/test-agent/chat/new');
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    await openModelSettings(page);
 
     const disabledNetworkRadio = page.getByRole('radio', { name: 'Network' });
     await expect(disabledNetworkRadio).toBeVisible();
@@ -68,7 +78,7 @@ test.describe('Agent Features', () => {
 
   test('model settings: advanced settings expand and show fields', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    await openModelSettings(page);
 
     // Expand advanced settings
     await page.getByRole('button', { name: 'Advanced Settings' }).click();
