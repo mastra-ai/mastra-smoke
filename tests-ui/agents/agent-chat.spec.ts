@@ -17,6 +17,17 @@ async function expandLeftPanel(page: Page) {
   await expect(newChatText).toBeVisible({ timeout: 10_000 });
 }
 
+/**
+ * Open the Model settings dialog. Studio moved model settings from a right-panel
+ * tab to a composer button that opens a popover dialog containing the chat-method
+ * radios (Generate / Stream subscription (default) / Stream / Network) and an
+ * Advanced Settings button.
+ */
+async function openModelSettings(page: Page) {
+  await page.getByRole('button', { name: 'Model settings' }).click();
+  await expect(page.getByRole('radio', { name: 'Generate' })).toBeVisible({ timeout: 5_000 });
+}
+
 test.describe('Agent Chat', () => {
   test('agent chat page shows overview panel', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
@@ -27,8 +38,10 @@ test.describe('Agent Chat', () => {
 
     // Overview tab is selected by default
     await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('tab', { name: 'Model Settings' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Memory' })).toBeVisible();
+
+    // Model settings is now a composer button that opens a dialog (no longer a tab)
+    await expect(page.getByRole('button', { name: 'Model settings' })).toBeVisible();
 
     // Tools section lists attached tools
     await expect(page.getByRole('link', { name: 'calculator' })).toBeVisible();
@@ -63,13 +76,14 @@ test.describe('Agent Chat', () => {
     await page.goto('/agents/test-agent/chat/new');
 
     // Switch to Generate mode.
-    // Studio renders the Stream/Generate radios as a base-ui radio group: a
-    // visible <span role="radio"> plus a hidden <input type="radio">, both
-    // associated with the same label. getByLabel('Generate') would match both
-    // and trip strict-mode. Target the role explicitly.
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    // Model settings is now a composer button that opens a popover dialog. The
+    // chat-method radios are a base-ui radio group: a visible <span role="radio">
+    // plus a hidden <input type="radio">, both associated with the same label.
+    // getByLabel('Generate') would match both and trip strict-mode, so target the
+    // role explicitly. Close the popover (Escape) before sending.
+    await openModelSettings(page);
     await page.getByRole('radio', { name: 'Generate' }).click();
-    await page.getByRole('tab', { name: 'Overview' }).click();
+    await page.keyboard.press('Escape');
 
     await fillAndSend(page, 'Say the word hello and nothing else.');
 
@@ -84,24 +98,30 @@ test.describe('Agent Chat', () => {
   test('model settings persist after reload', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
 
-    // Switch to Model Settings tab
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    // Open the Model settings popover dialog
+    await openModelSettings(page);
 
-    // Stream/Generate are base-ui radios: visible <span role="radio"> + hidden
-    // <input type="radio"> share the label, so getByLabel matches both. Target
-    // by role to avoid strict-mode violations.
-    await expect(page.getByRole('radio', { name: 'Stream' })).toHaveAttribute('aria-checked', 'true');
+    // The chat-method radios are base-ui radios: visible <span role="radio"> +
+    // hidden <input type="radio"> share the label, so getByLabel matches both.
+    // Target by role to avoid strict-mode violations. The default selection is
+    // now "Stream subscription (default)". Use exact to disambiguate from the
+    // plain "Stream" option.
+    await expect(
+      page.getByRole('radio', { name: 'Stream subscription (default)' }),
+    ).toHaveAttribute('aria-checked', 'true');
 
-    // Switch to Generate mode and change Max Steps
+    // Switch to Generate mode and change Max Steps (in the nested Advanced dialog)
     await page.getByRole('radio', { name: 'Generate' }).click();
-    await page.click('text=Advanced Settings');
+    await page.getByRole('button', { name: 'Advanced Settings' }).click();
     await page.getByLabel('Max Steps').fill('3');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
 
     // Reload and verify both Generate mode and Max Steps persisted
     await page.reload();
-    await page.getByRole('tab', { name: 'Model Settings' }).click();
+    await openModelSettings(page);
     await expect(page.getByRole('radio', { name: 'Generate' })).toHaveAttribute('aria-checked', 'true');
-    await page.click('text=Advanced Settings');
+    await page.getByRole('button', { name: 'Advanced Settings' }).click();
     await expect(page.getByLabel('Max Steps')).toHaveValue('3');
   });
 
