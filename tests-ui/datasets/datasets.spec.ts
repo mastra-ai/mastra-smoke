@@ -1,4 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+// The dataset detail page no longer renders the dataset name as an <h1>; the
+// page header <h1> is the generic "Dataset" and the name only shows in the
+// breadcrumb picker (not reliably selected on first load). The dataset
+// description is rendered as a paragraph in the header, so assert on the
+// description (unique per test) to confirm the detail page has loaded.
+async function expectDatasetLoaded(page: Page, description: string | RegExp) {
+  await expect(page.getByRole('heading', { name: 'Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+}
 
 test.describe('Datasets', () => {
   test('datasets list page shows create button and heading', async ({ page }) => {
@@ -50,7 +60,7 @@ test.describe('Datasets', () => {
 
     // Navigate to dataset detail
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: 'Items Test Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'For item tests');
 
     // Should show empty items tab initially — the "Add Item" button should be present
     await expect(page.getByRole('button', { name: 'Add Item' })).toBeVisible();
@@ -85,9 +95,13 @@ test.describe('Datasets', () => {
     // Click the item button to open detail panel
     await page.getByRole('button', { name: /Hello world/ }).click();
 
-    // Detail panel should show Input and Ground Truth headings
-    await expect(page.getByRole('heading', { name: 'Input', level: 2 })).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole('heading', { name: 'Ground Truth', level: 2 })).toBeVisible();
+    // Detail panel should show the item heading plus Input / Ground Truth labels.
+    // "Input" / "Ground Truth" also appear as table column headers, so scope the
+    // label assertions to the detail panel (the last occurrence, rendered after
+    // the items table) to avoid ambiguous matches.
+    await expect(page.getByRole('heading', { name: /^Item #/, level: 3 })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Input', { exact: true }).last()).toBeVisible();
+    await expect(page.getByText('Ground Truth', { exact: true }).last()).toBeVisible();
 
     // Clean up via API
     await request.delete(`/api/datasets/${datasetId}`);
@@ -103,7 +117,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: 'Before Edit', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'Old description');
 
     // Open actions menu → Edit Dataset
     await page.getByRole('button', { name: 'Dataset actions menu' }).first().click();
@@ -125,10 +139,9 @@ test.describe('Datasets', () => {
 
     await dialog.getByRole('button', { name: 'Save Changes' }).click();
 
-    // Dialog should close, heading should update
+    // Dialog should close and the updated description should render
     await expect(dialog).not.toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('heading', { name: 'After Edit', level: 1 })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('New description')).toBeVisible();
+    await expectDatasetLoaded(page, 'New description');
 
     // Clean up
     await request.delete(`/api/datasets/${datasetId}`);
@@ -149,13 +162,13 @@ test.describe('Datasets', () => {
     expect(itemRes.ok()).toBeTruthy();
 
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: 'Edit Item Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'For item editing');
 
     // Click item button to open detail panel
     await page.getByRole('button', { name: /original/ }).click();
 
     // Detail panel should show read-only content
-    await expect(page.getByRole('heading', { name: 'Input', level: 2 })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: /^Item #/, level: 3 })).toBeVisible({ timeout: 5_000 });
 
     // Open item actions menu → Edit
     await page.getByRole('button', { name: 'Actions menu' }).last().click();
@@ -201,7 +214,7 @@ test.describe('Datasets', () => {
 
     // Click item button to open detail panel
     await page.getByRole('button', { name: /to_delete/ }).click();
-    await expect(page.getByRole('heading', { name: 'Input', level: 2 })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: /^Item #/, level: 3 })).toBeVisible({ timeout: 5_000 });
 
     // Open item actions menu → Delete Item
     await page.getByRole('button', { name: 'Actions menu' }).last().click();
@@ -234,7 +247,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: 'Experiments Tab Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'For tab test');
 
     // Switch to Experiments tab
     await page.getByRole('tab', { name: /Experiments/ }).click();
@@ -263,7 +276,7 @@ test.describe('Datasets', () => {
 
     // Navigate to dataset detail
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: uniqueName, level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'Will be deleted');
 
     // Open actions menu and click Delete
     await page.getByRole('button', { name: 'Dataset actions menu' }).first().click();
@@ -293,7 +306,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: 'JSON Import Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'For JSON import test');
 
     // On an empty dataset, Import JSON is a direct button in the empty state
     await page.getByRole('button', { name: 'Import JSON' }).click();
@@ -353,7 +366,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: 'CSV Import Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'For CSV import test');
 
     // On an empty dataset, Import CSV is a direct button in the empty state
     await page.getByRole('button', { name: 'Import CSV' }).click();
@@ -419,7 +432,7 @@ test.describe('Datasets', () => {
 
     // Navigate to dataset page
     await page.goto(`/datasets/${datasetId}`);
-    await expect(page.getByRole('heading', { name: /Experiment Dataset/ })).toBeVisible({ timeout: 10_000 });
+    await expectDatasetLoaded(page, 'For experiment test');
 
     // Click "Run Experiment"
     await page.getByRole('button', { name: /Run Experiment/ }).click();
