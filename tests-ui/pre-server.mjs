@@ -6,8 +6,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectDir = join(__dirname, '..');
 
 /**
- * Delete stale database files (LibSQL + DuckDB) so every run starts fresh.
+ * Pre-server cleanup. MUST run before the Mastra server boots (it is invoked
+ * as part of the Playwright webServer command), NOT in globalSetup:
+ * Playwright launches the webServer before globalSetup runs, so deleting the
+ * database there unlinks it out from under the live server. On @mastra/core
+ * >= 1.40 the libsql client re-opens connections during interactive write
+ * transactions; a re-opened connection recreates the unlinked path as a
+ * fresh empty database, producing intermittent
+ * "SQLITE_ERROR: no such table: mastra_*" failures mid-run.
  */
+
+// Delete stale database files (LibSQL + DuckDB) so every run starts fresh.
 async function cleanDatabase() {
   const dirs = [projectDir, join(projectDir, '.mastra', 'output')];
   for (const dir of dirs) {
@@ -35,7 +44,5 @@ async function cleanWorkspace() {
   await mkdir(wsDir, { recursive: true });
 }
 
-export default async function globalSetup() {
-  await cleanDatabase();
-  await cleanWorkspace();
-}
+await cleanDatabase();
+await cleanWorkspace();

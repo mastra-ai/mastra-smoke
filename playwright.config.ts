@@ -6,7 +6,6 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: './tests-ui',
-  globalSetup: './tests-ui/global-setup.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -39,7 +38,10 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: `MASTRA_STUDIO_PATH=.mastra/output/studio PORT=${PORT} MASTRA_HOST=127.0.0.1 MASTRA_AUTO_DETECT_URL=true node ${existsSync('.env') ? '--env-file=.env' : ''} .mastra/output/index.mjs`,
+    // Cleanup must happen inside the webServer command (before the server
+    // boots), not in globalSetup — Playwright starts the webServer before
+    // globalSetup, so deleting the DB there unlinks it under the live server.
+    command: `node tests-ui/pre-server.mjs && MASTRA_STUDIO_PATH=.mastra/output/studio PORT=${PORT} MASTRA_HOST=127.0.0.1 MASTRA_AUTO_DETECT_URL=true node ${existsSync('.env') ? '--env-file=.env' : ''} .mastra/output/index.mjs`,
     url: `${BASE_URL}/api/workflows`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
