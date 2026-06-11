@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 
-// Studio's chat composer now sends messages to the agent `signals` endpoint
-// (subscription model) instead of the old `/stream` route. The request context
-// is nested under `ifIdle.streamOptions.requestContext` in that body.
-const SIGNALS_ROUTE = /\/api\/agents\/test-agent\/signals$/;
+// Studio's chat composer now sends messages to the agent `send-message`
+// endpoint (it previously used `/signals`, and `/stream` before that). The
+// request context is nested under `ifIdle.streamOptions.requestContext`.
+const SEND_MESSAGE_ROUTE = /\/api\/agents\/test-agent\/send-message$/;
 
-type SignalsBody = {
+type SendMessageBody = {
   ifIdle?: { streamOptions?: { requestContext?: Record<string, unknown> } };
 };
 
-function extractRequestContext(body: SignalsBody | null): Record<string, unknown> | undefined {
+function extractRequestContext(body: SendMessageBody | null): Record<string, unknown> | undefined {
   return body?.ifIdle?.streamOptions?.requestContext;
 }
 
@@ -61,15 +61,15 @@ test.describe('Request Context', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Request context saved successfully')).toBeVisible({ timeout: 5_000 });
 
-    // 2. Navigate to agent chat and intercept the signals call
+    // 2. Navigate to agent chat and intercept the send-message call
     await page.goto('/agents/test-agent/chat/new');
     await expect(page.getByRole('heading', { name: 'Test Agent' })).toBeVisible({ timeout: 10_000 });
 
-    // Intercept the POST to the agent signals endpoint. The streamed request body
+    // Intercept the POST to the agent send-message endpoint. The streamed request body
     // is only readable via route.request().postData() during interception — passive
     // request listeners see an empty body.
-    let capturedBody: SignalsBody | null = null;
-    await page.route(SIGNALS_ROUTE, async (route) => {
+    let capturedBody: SendMessageBody | null = null;
+    await page.route(SEND_MESSAGE_ROUTE, async (route) => {
       const request = route.request();
       try {
         capturedBody = JSON.parse(request.postData() ?? '{}');
@@ -85,7 +85,7 @@ test.describe('Request Context', () => {
     await chatInput.fill('say hello');
     await chatInput.press('Enter');
 
-    // Wait for the signals request to be captured
+    // Wait for the send-message request to be captured
     await expect(async () => {
       expect(capturedBody).not.toBeNull();
     }).toPass({ timeout: 30_000 });
@@ -97,7 +97,7 @@ test.describe('Request Context', () => {
     expect(rc!.env).toBe('test');
 
     // 3. Remove the request context via the UI
-    await page.unroute(SIGNALS_ROUTE);
+    await page.unroute(SEND_MESSAGE_ROUTE);
     await page.goto('/request-context');
     const editorClear = page.getByRole('textbox').and(page.locator('.cm-content'));
     await expect(editorClear).toBeVisible();
@@ -111,11 +111,11 @@ test.describe('Request Context', () => {
     await expect(page.getByText('Request context saved successfully')).toBeVisible({ timeout: 5_000 });
 
     // 4. Navigate to agent chat again and verify requestContext is empty
-    let capturedBodyAfter: SignalsBody | null = null;
+    let capturedBodyAfter: SendMessageBody | null = null;
     await page.goto('/agents/test-agent/chat/new');
     await expect(page.getByRole('heading', { name: 'Test Agent' })).toBeVisible({ timeout: 10_000 });
 
-    await page.route(SIGNALS_ROUTE, async (route) => {
+    await page.route(SEND_MESSAGE_ROUTE, async (route) => {
       const request = route.request();
       try {
         capturedBodyAfter = JSON.parse(request.postData() ?? '{}');
