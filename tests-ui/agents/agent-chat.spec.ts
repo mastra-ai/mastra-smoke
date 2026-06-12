@@ -38,7 +38,9 @@ test.describe('Agent Chat', () => {
 
     // Overview tab is selected by default
     await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('tab', { name: 'Memory' })).toBeVisible();
+    // Working memory moved out of the right panel — it now lives in the left
+    // panel's "Memory Configuration" tab (next to Threads)
+    await expect(page.getByRole('tab', { name: 'Memory Configuration' })).toBeVisible();
 
     // Model settings is now a composer button that opens a dialog (no longer a tab)
     await expect(page.getByRole('button', { name: 'Model settings' })).toBeVisible();
@@ -192,7 +194,9 @@ test.describe('Agent Chat', () => {
     // The previous user message should be visible in the reloaded thread
     // Scope to the first message (user) to avoid matching the assistant response
     // which may echo back the same text (causes strict mode violation)
-    const userMessage = page.getByTestId('thread-wrapper').locator('[data-message-index="0"]');
+    // Messages are tagged with data-message-id (ids, not positional indexes),
+    // so grab the first message element to scope to the user message.
+    const userMessage = page.getByTestId('thread-wrapper').locator('[data-message-id]').first();
     await expect(userMessage.getByText('First thread message for reload test')).toBeVisible({ timeout: 10_000 });
   });
 
@@ -221,8 +225,8 @@ test.describe('Agent Chat', () => {
   test('memory tab shows working memory', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
 
-    // Switch to the Memory tab
-    await page.getByRole('tab', { name: 'Memory' }).click();
+    // Switch to the Memory Configuration tab (left panel, next to Threads)
+    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
 
     // Working Memory heading should be visible
     await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
