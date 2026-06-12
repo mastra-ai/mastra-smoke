@@ -15,13 +15,14 @@ export async function fillAndSend(page: Page, message: string) {
 
 /**
  * Wait for the assistant message to appear in the thread.
- * Uses data-message-index to find the first non-user message.
+ * Uses data-message-id (renamed from data-message-index in Studio) to find
+ * the last message in the thread.
  */
 export async function waitForAssistantMessage(page: Page, timeout = 30_000) {
   const thread = page.getByTestId('thread-wrapper');
   // The assistant may emit multiple messages (e.g. tool calls then final text).
   // Grab the last assistant message so assertions match the final response.
-  const assistantMsg = thread.locator('[data-message-index]').last();
+  const assistantMsg = thread.locator('[data-message-id]').last();
   await expect(assistantMsg).toBeVisible({ timeout });
   return assistantMsg;
 }

@@ -29,7 +29,7 @@ test.describe('Memory & Threads', () => {
 
     // Send a message to create a new thread
     await fillAndSend(page, 'Thread list test message');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page);
 
     // Extract the thread ID from the URL
@@ -52,7 +52,7 @@ test.describe('Memory & Threads', () => {
 
     // Send a message to create a thread we can delete
     await fillAndSend(page, 'Thread to be deleted');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page);
 
     // Extract the thread path from the URL so we can target this specific thread
@@ -99,19 +99,20 @@ test.describe('Memory & Threads', () => {
     test.slow();
     await page.goto('/agents/test-agent/chat/new');
 
-    // Before a thread exists, the Memory tab should show a hint
-    await page.getByRole('tab', { name: 'Memory' }).click();
+    // Working memory now lives in the left panel's "Memory Configuration" tab
+    // (next to Threads). Before a thread exists it should show a hint.
+    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
     await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText('Send a message to the agent to enable working memory.')).toBeVisible();
 
     // Send a message that gives the agent user information to store in working memory.
     // Working-memory tool call adds an LLM round-trip — give the URL transition extra slack.
     await fillAndSend(page, 'My name is SmokeTestUser99 and I live in San Francisco.');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
-    // Switch to Memory tab to see working memory
-    await page.getByRole('tab', { name: 'Memory' }).click();
+    // Switch to Memory Configuration tab to see working memory
+    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
 
     // The Edit Working Memory button should be enabled (thread exists now)
     const editButton = page.getByRole('button', { name: 'Edit Working Memory' });
@@ -119,9 +120,9 @@ test.describe('Memory & Threads', () => {
 
     // The working memory should contain the facts extracted from the message.
     // The agent writes markdown with user info; verify both facts appear in the display.
-    const rightPanel = page.locator('#right-slot');
-    await expect(rightPanel).toContainText(/SmokeTestUser99/i, { timeout: 10_000 });
-    await expect(rightPanel).toContainText(/San Francisco/i, { timeout: 10_000 });
+    const memoryPanel = page.locator('#left-slot');
+    await expect(memoryPanel).toContainText(/SmokeTestUser99/i, { timeout: 10_000 });
+    await expect(memoryPanel).toContainText(/San Francisco/i, { timeout: 10_000 });
   });
 
   test('working memory editing', async ({ page }) => {
@@ -132,11 +133,11 @@ test.describe('Memory & Threads', () => {
     // The agent triggers a working-memory tool call before the user-visible reply,
     // which can push the URL transition past the default 20s on a slow LLM round-trip.
     await fillAndSend(page, 'My name is EditTestUser77 and I like pizza.');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
-    // Switch to Memory tab
-    await page.getByRole('tab', { name: 'Memory' }).click();
+    // Switch to the Memory Configuration tab (left panel, next to Threads)
+    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
     await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
 
     // Click Edit Working Memory
