@@ -159,7 +159,7 @@ Playwright tests don't hit this because the test runner uses a single
 host (`127.0.0.1:4555`) end-to-end. No action required for the smoke
 suite, but worth knowing when probing UI with agent-browser.
 
-## 7. Edit Dataset dialog never unmounts after dismissal (awaiting upstream fix)
+## 7. Edit Dataset dialog never unmounts after dismissal (upstream #17890)
 
 **Symptom**
 
@@ -177,4 +177,6 @@ PATCH lands and the dataset updates; only the dismissal is broken.
 `datasets.spec.ts › edit dataset name and description` asserts
 `toHaveAttribute('data-closed', '')` (logical close) instead of
 `not.toBeVisible()` (unmount) until the upstream fix lands. Revert to
-the unmount assertion once fixed.
+the unmount assertion once https://github.com/mastra-ai/mastra/issues/17890
+is fixed (likely cause: `EditDatasetDialog` keys its form remount on
+`open`, destroying the popup instance Base UI is animating out).
