@@ -4,6 +4,11 @@ import { streamAgent } from '../utils.js';
 describe('agent stream with memory', () => {
   it(
     'should recall context across turns on the same thread',
+    // Working-memory streaming can intermittently spiral into a runaway
+    // updateWorkingMemory tool loop that blows past the timeout (upstream
+    // @mastra/core regression). A passing turn takes ~7s, so retries are cheap.
+    // See KNOWN_ISSUES.md.
+    { timeout: 120_000, retry: 2 },
     async () => {
       const threadId = crypto.randomUUID();
       const resourceId = 'smoke-test-stream-user';
@@ -41,6 +46,5 @@ describe('agent stream with memory', () => {
       const fullText = textDeltas.map((e: any) => e.payload.text).join('');
       expect(fullText.toUpperCase(), 'LLM did not recall the magic word from the previous turn').toContain('BRAVO-9');
     },
-    120_000,
   );
 });

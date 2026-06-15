@@ -178,3 +178,31 @@ PATCH lands and the dataset updates; only the dismissal is broken.
 `toHaveAttribute('data-closed', '')` (logical close) instead of
 `not.toBeVisible()` (unmount) until the upstream fix lands. Revert to
 the unmount assertion once fixed.
+
+## 8. API working-memory tests intermittently time out (upstream)
+
+**Symptom**
+
+`tests/agents/stream-memory.test.ts › should recall context across turns`
+and `tests/agents/generate.test.ts › multi-turn with memory › should
+remember context across turns` intermittently hit their full test
+timeout (120s / 60s) on the CI `zod3` leg. Reproduced locally on the
+exact CI stack (`@mastra/core@1.42.0-alpha.4`, `zod@3.25.76`): three
+back-to-back `stream-memory` runs measured 7.7s / 120s-timeout / 7.7s.
+
+**Cause**
+
+A single working-memory turn either converges in ~7s or spirals into a
+runaway `updateWorkingMemory` tool-call loop that never finishes —
+upstream `@mastra/core` behavior regression first seen on `1.38.x`,
+still present in `1.42.0-alpha.4`. The `streamAgent` helper reads the
+full response body (`res.text()`), so the loop blocks until the test
+timeout fires. `zod4` happens to pass more often, so failures cluster
+on the `zod3` leg, but it is not zod-specific.
+
+**Workaround**
+
+Both tests use `it(name, { timeout, retry: 2 }, fn)`. A passing turn is
+~7s, so retries are cheap; the runaway path is rare enough that 2
+retries clears it. Bumping the timeout alone does not help (the loop
+never converges). Remove the retries once the upstream loop is fixed.

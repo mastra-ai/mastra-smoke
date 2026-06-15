@@ -62,6 +62,11 @@ describe('agent generate', () => {
   describe('multi-turn with memory', () => {
     it(
       'should remember context across turns on the same thread',
+      // Working-memory recall can intermittently spiral into a runaway
+      // updateWorkingMemory tool loop that blows past the timeout (upstream
+      // @mastra/core regression). A passing turn is fast, so retries are cheap.
+      // See KNOWN_ISSUES.md.
+      { timeout: 60_000, retry: 2 },
       async () => {
         const threadId = crypto.randomUUID();
         const resourceId = 'smoke-test-user';
@@ -88,7 +93,6 @@ describe('agent generate', () => {
         expect(second.text).toBeTruthy();
         expect(second.text.toUpperCase()).toContain('ALPHA-7');
       },
-      60_000,
     );
   });
 
