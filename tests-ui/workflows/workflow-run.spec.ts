@@ -7,12 +7,16 @@ import { test, expect, Page } from '@playwright/test';
 async function getStepStatuses(page: Page): Promise<{ name: string; status: string }[]> {
   return page.$$eval('[data-workflow-node]', nodes =>
     nodes.map(n => {
-      // Full text looks like "add-greeting 3ms Time travel Input Output"
-      // The step name is always the first whitespace-separated token
+      // Full text looks like "add-greeting 3ms Time travel Input Output".
+      // As of @mastra/core 1.43.x the duration badge is glued directly onto
+      // the step name with no separator, e.g. "add-greeting4ms", so the first
+      // whitespace-separated token can carry a trailing "<number><unit>"
+      // duration suffix. Strip it to recover the kebab-case step name.
       const fullText = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
       const firstToken = fullText.split(' ')[0].toLowerCase();
+      const name = firstToken.replace(/\d+(?:\.\d+)?m?s$/, '');
       return {
-        name: firstToken,
+        name,
         status: n.getAttribute('data-workflow-step-status') ?? 'unknown',
       };
     }),
