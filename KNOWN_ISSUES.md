@@ -206,3 +206,42 @@ Both tests use `it(name, { timeout, retry: 2 }, fn)`. A passing turn is
 ~7s, so retries are cheap; the runaway path is rare enough that 2
 retries clears it. Bumping the timeout alone does not help (the loop
 never converges). Remove the retries once the upstream loop is fixed.
+
+## 9. Workflow graph redesign (@mastra/core 1.44.x) + lost step-error detail
+
+**Symptom**
+
+- After bumping to `@mastra/core@1.44.0-alpha.2`, the entire
+  `tests-ui/workflows/workflow-run.spec.ts` suite (10 tests) failed on both
+  legs with `expect(locator('h2')).toHaveText(...)` (received "Recent runs")
+  and `getByRole('button', { name: 'Handle-positive' / 'Always-fails' })`
+  not found.
+
+**Cause**
+
+The workflow graph page was redesigned:
+- The workflow name moved out of `<h1>/<h2>` into a header `<span>` (the only
+  `<h2>` is now a "Recent runs" panel).
+- Step nodes are `<div data-testid="workflow-default-node"
+  data-workflow-step-key="<name>">`, no longer `role=button`. A parallel
+  **timeline panel** renders `<div role="button"
+  data-testid="workflow-timeline-row" data-workflow-step-key="<name>">` rows.
+- Step output is shown in a CodeMirror JSON viewer revealed by clicking
+  "Run output" (e.g. `{"result":{"result":"Positive: 10"}}`).
+- "Recent runs" lists past runs as `<a href=".../graph/<runId>">` keyed by
+  run id; the list only refreshes on (re)load.
+- The resume button was renamed "Resume workflow" → "Resume"; the suspend
+  payload text ("Please approve: ...") is no longer rendered.
+
+The spec was rewritten to use the stable `data-workflow-step-key` /
+`data-testid` hooks and status attributes instead of role/heading text.
+
+**Upstream gap (unfixed)**
+
+A **failed** workflow step no longer surfaces its error message anywhere in
+the graph UI — the panel shows only a "Failed" badge + run id, with no
+"Run output" section and no error text. The
+`failure-workflow: step shows failed status and error detail` test therefore
+asserts only the `failed` *status* (via `data-workflow-step-status`); the
+error-text assertion (`Intentional failure for smoke test`) was dropped.
+Restore it once the graph UI re-exposes failed-step error detail.
