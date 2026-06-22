@@ -111,11 +111,13 @@ test.describe('Memory & Threads', () => {
     await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
-    // Open Memory panel to see working memory
-    await page.getByTestId('memory-sidebar-card').click();
-
-    // The Edit Working Memory button should be enabled (thread exists now)
+    // The memory panel stays open after chat and auto-refreshes with working
+    // memory content. Clicking the card again would collapse the detail view.
+    // Only click if the Edit button isn't already visible.
     const editButton = page.getByRole('button', { name: 'Edit Working Memory' });
+    if (!(await editButton.isVisible().catch(() => false))) {
+      await page.getByTestId('memory-sidebar-card').click();
+    }
     await expect(editButton).toBeEnabled({ timeout: 10_000 });
 
     // The working memory should contain the facts extracted from the message.
@@ -136,12 +138,13 @@ test.describe('Memory & Threads', () => {
     await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
-    // Open Memory panel (left panel button)
-    await page.getByTestId('memory-sidebar-card').click();
-    await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
-
-    // Click Edit Working Memory
+    // The memory panel stays open after chat and auto-refreshes with working
+    // memory content. Only click the card if the panel isn't already showing.
     const editButton = page.getByRole('button', { name: 'Edit Working Memory' });
+    if (!(await editButton.isVisible().catch(() => false))) {
+      await page.getByTestId('memory-sidebar-card').click();
+    }
+    await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
     await expect(editButton).toBeEnabled({ timeout: 10_000 });
     await editButton.click();
 
