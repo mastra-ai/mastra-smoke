@@ -44,18 +44,18 @@ test.describe('Agent Features', () => {
     await expect(page.getByRole('radio', { name: 'Generate' })).toBeChecked();
   });
 
-  test('tracing options tab shows JSON editor', async ({ page }) => {
+  test('tracing options shows JSON editor via Run options', async ({ page }) => {
     await page.goto('/agents/test-agent/chat/new');
 
-    // Switch to Tracing Options tab
-    await page.getByRole('tab', { name: 'Tracing Options' }).click();
+    // Tracing Options moved from a tab to the "Run options" composer button
+    await page.getByRole('button', { name: 'Run options' }).click();
 
-    // Heading (h3 inside the tab panel)
-    await expect(page.getByRole('heading', { name: 'Tracing Options', level: 3 })).toBeVisible();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    // CodeMirror editor should be present
-    const editor = page.getByRole('textbox').and(page.locator('.cm-content'));
-    await expect(editor).toBeVisible();
+    // The dialog shows "Tracing Options" label and contains a JSON editor
+    await expect(dialog.getByText('Tracing Options')).toBeVisible();
+    await expect(dialog.getByRole('textbox').first()).toBeVisible();
   });
 
   test('model settings: network mode enabled only with sub-agents and memory', async ({ page }) => {
@@ -115,11 +115,12 @@ test.describe('Agent Features', () => {
   test('network-agent overview shows sub-agents section', async ({ page }) => {
     await page.goto('/agents/network-agent/chat/new');
 
-    // Overview tab should be selected
-    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    // Overview content is behind the agent-view-header-toggle
+    await expect(page.locator('h2:has-text("Network Agent")')).toBeVisible();
+    await page.getByTestId('agent-view-header-toggle').click();
 
     // Sub-agents section with "Agents" heading
-    await expect(page.getByRole('heading', { name: 'Agents', level: 3 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
 
     // Helper Agent should be listed as a sub-agent
     await expect(page.getByText('Helper Agent')).toBeVisible();
@@ -190,9 +191,11 @@ test.describe('Agent Features', () => {
   test('workflow-agent triggers workflow and workflow badge renders in chat', async ({ page }) => {
     await page.goto('/agents/workflow-agent/chat/new');
 
-    // Verify the overview shows the workflow is attached
-    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    // Verify the overview shows the workflow is attached (behind header toggle)
+    await page.getByTestId('agent-view-header-toggle').click();
     await expect(page.getByRole('link', { name: 'sequential-steps' })).toBeVisible();
+    // Collapse overview so it doesn't interfere with the chat interaction
+    await page.getByTestId('agent-view-header-toggle').click();
 
     // Send a message that triggers the workflow
     await fillAndSend(page, 'Greet someone named Alice');
