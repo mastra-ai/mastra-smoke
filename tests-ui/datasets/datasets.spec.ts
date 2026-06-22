@@ -145,11 +145,10 @@ test.describe('Datasets', () => {
     );
     await dialog.getByRole('button', { name: 'Save Changes' }).click();
     expect((await patchPromise).ok()).toBeTruthy();
-    await dialog.getByRole('button', { name: 'Close' }).click();
-    // Upstream bug (mastra@1.13.0-alpha.4 Studio): the Edit Dataset dialog
-    // never unmounts after dismissal — Close/Cancel/Escape all leave it stuck
-    // on screen with data-closed set. Assert the logical close state instead
-    // of unmount until the upstream fix lands. See KNOWN_ISSUES.md.
+    // Upstream bug: the Edit Dataset dialog's Close button never stabilises
+    // (perpetual animation), so a normal click times out. Use Escape to
+    // dismiss and assert the logical close state. See KNOWN_ISSUES.md.
+    await page.keyboard.press('Escape');
     await expect(dialog).toHaveAttribute('data-closed', '', { timeout: 10_000 });
     await expectDatasetLoaded(page, 'New description');
 

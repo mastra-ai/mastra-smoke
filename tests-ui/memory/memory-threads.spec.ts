@@ -99,9 +99,9 @@ test.describe('Memory & Threads', () => {
     test.slow();
     await page.goto('/agents/test-agent/chat/new');
 
-    // Working memory now lives in the left panel's "Memory Configuration" tab
-    // (next to Threads). Before a thread exists it should show a hint.
-    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
+    // Working memory now lives behind the "Memory" button in the left panel.
+    // Before a thread exists it should show a hint.
+    await page.getByTestId('memory-sidebar-card').click();
     await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText('Send a message to the agent to enable working memory.')).toBeVisible();
 
@@ -111,8 +111,8 @@ test.describe('Memory & Threads', () => {
     await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
-    // Switch to Memory Configuration tab to see working memory
-    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
+    // Open Memory panel to see working memory
+    await page.getByTestId('memory-sidebar-card').click();
 
     // The Edit Working Memory button should be enabled (thread exists now)
     const editButton = page.getByRole('button', { name: 'Edit Working Memory' });
@@ -136,8 +136,8 @@ test.describe('Memory & Threads', () => {
     await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
-    // Switch to the Memory Configuration tab (left panel, next to Threads)
-    await page.getByRole('tab', { name: 'Memory Configuration' }).click();
+    // Open Memory panel (left panel button)
+    await page.getByTestId('memory-sidebar-card').click();
     await expect(page.getByRole('heading', { name: 'Working Memory', exact: true })).toBeVisible({ timeout: 5_000 });
 
     // Click Edit Working Memory
