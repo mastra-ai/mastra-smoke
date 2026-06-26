@@ -245,3 +245,39 @@ the graph UI — the panel shows only a "Failed" badge + run id, with no
 asserts only the `failed` *status* (via `data-workflow-step-status`); the
 error-text assertion (`Intentional failure for smoke test`) was dropped.
 Restore it once the graph UI re-exposes failed-step error detail.
+
+## 10. Studio fails to boot — `os.tmpdir()` in client bundle (@mastra/core 1.47.0-alpha.5)
+
+**Symptom**
+
+Starting with `mastra@1.16.0-alpha.5` / `@mastra/core@1.47.0-alpha.5`, the
+entire UI suite (89/89 on both legs) fails. Every page renders the fallback
+screen:
+
+> Mastra Studio failed to start — The startup module failed before React
+> could render.
+
+API tests are unaffected (green).
+
+**Cause**
+
+The Studio client bundle (`studio/assets/main-*.js`) runs a **module-level**
+Node-only call in the browser:
+
+```js
+path.join(os2__default.tmpdir(), ".mastra-mounts")
+```
+
+`os` is shimmed to an empty object in the browser, so this throws
+`TypeError: os2__default.tmpdir is not a function` at import time, before
+React mounts. The surrounding code (`ENV_FIELD_NAMES`, `SECRET_FIELD_PATTERN`,
+`.mastra-mounts`) is server-side workspace-mount / env-secret logic that
+leaked into the client bundle.
+
+**Bracket**: last green `@mastra/core@1.47.0-alpha.4`; first red
+`1.47.0-alpha.5`.
+
+**Status**: upstream bug, no smoke-side fix possible — the published bundle
+ships broken. Tracked in mastra-ai/mastra#18519. CI will stay red on the
+affected alphas until upstream excludes the server code from the client
+bundle.
