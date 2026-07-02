@@ -76,10 +76,20 @@ describe('agent tool approval', () => {
       const text = await res.text();
       const events = parseSSEEvents(text);
 
-      // Should have tool-result indicating the tool was not approved
-      const toolResult = events.find((e: any) => e.type === 'tool-result');
-      expect(toolResult, 'expected tool-result event after decline').toBeDefined();
-      expect(toolResult.payload.result).toBe('Tool call was not approved by the user');
+      // Declining no longer injects a synthetic tool-result. The tool is simply
+      // not executed and the agent continues the conversation, so there must be
+      // no tool-result for the declined tool anywhere in the resumed stream.
+      const declinedToolResult = events.find(
+        (e: any) => e.type === 'tool-result' && e.payload?.toolName === 'needs-approval',
+      );
+      expect(
+        declinedToolResult,
+        'declined tool should not execute — no needs-approval tool-result expected',
+      ).toBeUndefined();
+
+      // The resumed stream should still complete cleanly.
+      const finish = events.find((e: any) => e.type === 'finish');
+      expect(finish, 'expected the declined run to finish').toBeDefined();
     });
   });
 });
