@@ -25,8 +25,8 @@ setup('pause scheduled-tick', async () => {
     try {
       const res = await fetch(`${BASE_URL}/api/schedules?workflowId=scheduled-tick`);
       if (res.ok) {
-        const data = (await res.json()) as { schedules?: Array<{ id: string; target?: { workflowId?: string } }> };
-        const tick = data?.schedules?.find(s => s.target?.workflowId === 'scheduled-tick');
+        const data = (await res.json()) as { schedules?: Array<{ id: string; workflowId?: string }> };
+        const tick = data?.schedules?.find(s => s.workflowId === 'scheduled-tick');
         if (tick?.id) {
           tickId = tick.id;
           break;

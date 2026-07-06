@@ -9,12 +9,12 @@ describe('schedules — list', () => {
     expect(data.schedules.length).toBeGreaterThan(0);
 
     const heartbeat = data.schedules.find(
-      (s: any) => s.target?.workflowId === 'scheduled-heartbeat',
+      (s: any) => s.workflowId === 'scheduled-heartbeat',
     );
     expect(heartbeat).toBeDefined();
     expect(heartbeat.cron).toBe('0 0 1 1 *');
     expect(heartbeat.status).toBe('active');
-    expect(heartbeat.target.type).toBe('workflow');
+    expect(heartbeat.workflowId).toBe('scheduled-heartbeat');
     expect(typeof heartbeat.nextFireAt).toBe('number');
     expect(typeof heartbeat.createdAt).toBe('number');
     expect(heartbeat.metadata?.purpose).toBe('smoke-test-schedule');
@@ -27,14 +27,14 @@ describe('schedules — list', () => {
     expect(status).toBe(200);
     expect(data.schedules.length).toBeGreaterThan(0);
     for (const s of data.schedules) {
-      expect(s.target.workflowId).toBe('scheduled-heartbeat');
+      expect(s.workflowId).toBe('scheduled-heartbeat');
     }
   });
 
   it('GET /schedules/:scheduleId returns the schedule by id', async () => {
     const list = await fetchJson<any>('/api/schedules');
     const heartbeat = list.data.schedules.find(
-      (s: any) => s.target?.workflowId === 'scheduled-heartbeat',
+      (s: any) => s.workflowId === 'scheduled-heartbeat',
     );
     const { status, data } = await fetchJson<any>(`/api/schedules/${heartbeat.id}`);
     expect(status).toBe(200);
@@ -56,7 +56,7 @@ describe('schedules — actually fires', () => {
   afterAll(async () => {
     const list = await fetchJson<any>('/api/schedules?workflowId=scheduled-tick');
     const tick = list.data?.schedules?.find(
-      (s: any) => s.target?.workflowId === 'scheduled-tick',
+      (s: any) => s.workflowId === 'scheduled-tick',
     );
     if (tick?.id) {
       await fetchApi(`/api/schedules/${tick.id}/pause`, { method: 'POST' }).catch(() => {});
@@ -67,7 +67,7 @@ describe('schedules — actually fires', () => {
     const list = await fetchJson<any>('/api/schedules?workflowId=scheduled-tick');
     expect(list.status).toBe(200);
     const tick = list.data.schedules.find(
-      (s: any) => s.target?.workflowId === 'scheduled-tick',
+      (s: any) => s.workflowId === 'scheduled-tick',
     );
     expect(tick, 'scheduled-tick schedule must be registered').toBeDefined();
 
@@ -99,7 +99,7 @@ describe('schedules — actually fires', () => {
     while (Date.now() < deadline) {
       const res = await fetchJson<any>('/api/schedules?workflowId=scheduled-tick');
       withLastRun = res.data.schedules?.find(
-        (s: any) => s.target?.workflowId === 'scheduled-tick' && s.lastRunId,
+        (s: any) => s.workflowId === 'scheduled-tick' && s.lastRunId,
       );
       if (withLastRun?.lastRun?.status === 'success') break;
       await new Promise(r => setTimeout(r, 500));
