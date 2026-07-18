@@ -245,3 +245,36 @@ the graph UI — the panel shows only a "Failed" badge + run id, with no
 asserts only the `failed` *status* (via `data-workflow-step-status`); the
 error-text assertion (`Intentional failure for smoke test`) was dropped.
 Restore it once the graph UI re-exposes failed-step error detail.
+
+## 10. Dataset item writes 500 on alpha (upstream publish skew, no smoke fix)
+
+**Symptom**
+
+Run 29632745845 (2026-07-18): 9 API failures in `tests/datasets/datasets.test.ts`
+(add/update item → 500, everything downstream cascades to 404s/empty lists)
+plus 4 UI failures in `tests-ui/datasets/datasets.spec.ts` (the "Add Item"
+dialog never closes because the POST 500s). Both zod legs, deterministic:
+
+```
+POST /api/datasets/:id/items → 500
+{"error":"Dataset item payload must be JSON-serializable: non-plain object
+(RequestContext) at items[0].requestContext would change during JSON persistence."}
+```
+
+**Cause**
+
+Publish-order skew around upstream PR #19603 (`11f6cd96`). That commit added
+*both* a strict payload-serialization validator in `@mastra/core` *and* a
+compensating `toItemRequestContext()` conversion in `@mastra/server` (the
+adapter overwrites the body's `requestContext` with the live `RequestContext`
+instance). `@mastra/core@1.52.0-alpha.6` shipped the validator, but the alpha
+tag of `@mastra/server` is still `1.52.0-alpha.4` (published *before* the
+commit), so the handler passes the raw `RequestContext` instance into storage
+and the new validator correctly rejects it. Filed as
+[mastra#19693](https://github.com/mastra-ai/mastra/issues/19693).
+
+**Resolution**
+
+No smoke-side change — the tests are correct (valid JSON body 500s). Clears
+itself on the next `@mastra/server`/`mastra` alpha publish that includes
+`11f6cd96`. Last green stack: `@mastra/core@1.52.0-alpha.5`.
