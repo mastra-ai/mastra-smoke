@@ -142,18 +142,27 @@ test.describe('Agent Features', () => {
     await expect(page.getByRole('link', { name: /^Workflow Agent\b/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /^Observational Agent\b/ })).toBeVisible();
 
-    // Grid columns: Name(1), Instructions(2), Model(3), Workflows(4), Agents(5), Tools(6)
-    // Network Agent has 1 agent (helperAgent)
-    const networkLink = page.getByRole('link', { name: /^Network Agent\b/ });
-    await expect(networkLink.locator(':scope > span:nth-child(5)')).toHaveText('1');
+    // Attached-entity counts render as sibling buttons whose accessible name
+    // spells out the entity type and count, e.g. "Show 1 agent for Network Agent".
+    // Network Agent has 1 sub-agent (helperAgent)
+    await expect(
+      page.getByRole('button', { name: 'Show 1 agent for Network Agent' }),
+    ).toHaveText('1');
 
     // Helper Agent has 1 tool
-    const helperLink = page.getByRole('link', { name: /^Helper Agent\b/ });
-    await expect(helperLink.locator(':scope > span:nth-child(6)')).toHaveText('1');
+    await expect(
+      page.getByRole('button', { name: 'Show 1 tool for Helper Agent' }),
+    ).toHaveText('1');
 
     // Workflow Agent has 1 workflow
-    const workflowLink = page.getByRole('link', { name: /^Workflow Agent\b/ });
-    await expect(workflowLink.locator(':scope > span:nth-child(4)')).toHaveText('1');
+    await expect(
+      page.getByRole('button', { name: 'Show 1 workflow for Workflow Agent' }),
+    ).toHaveText('1');
+
+    // Test Agent has 2 tools (calculator, string-transform)
+    await expect(
+      page.getByRole('button', { name: 'Show 2 tools for Test Agent' }),
+    ).toHaveText('2');
   });
 
   test('network-agent delegates to helper-agent via sub-agent call', async ({ page }) => {
