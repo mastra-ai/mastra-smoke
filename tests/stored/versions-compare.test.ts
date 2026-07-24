@@ -40,9 +40,46 @@ describe('stored agents — versions/compare', () => {
       },
     );
     expect(patch.status).toBe(200);
-    v2 = patch.data.activeVersionId;
+
+    // PATCH is draft-only by default: it auto-saves a new version but leaves
+    // the active (published) version pointing at v1 until an explicit
+    // activate/publish. Opt in with `autoPublish: true` to move it.
+    expect(patch.data.activeVersionId).toBe(v1);
+
+    const versions = await fetchJson<{
+      versions: Array<{ id: string; versionNumber: number }>;
+    }>(`/api/stored/agents/${AGENT_ID}/versions`);
+    expect(versions.status).toBe(200);
+
+    const second = versions.data.versions.find((v) => v.versionNumber === 2);
+    expect(second, 'expected PATCH to auto-save version 2').toBeDefined();
+    v2 = second!.id;
     expect(v2).toMatch(UUID_RE);
     expect(v2).not.toBe(v1);
+  });
+
+  it('PATCH with autoPublish promotes the new version to active', async () => {
+    const patch = await fetchJson<{
+      activeVersionId: string;
+      instructions: string;
+    }>(`/api/stored/agents/${AGENT_ID}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ instructions: 'third', autoPublish: true }),
+    });
+    expect(patch.status).toBe(200);
+    expect(patch.data.instructions).toBe('third');
+    expect(patch.data.activeVersionId).toMatch(UUID_RE);
+    expect(patch.data.activeVersionId).not.toBe(v1);
+    expect(patch.data.activeVersionId).not.toBe(v2);
+
+    // The published version is what a subsequent read resolves to.
+    const get = await fetchJson<{
+      activeVersionId: string;
+      instructions: string;
+    }>(`/api/stored/agents/${AGENT_ID}`);
+    expect(get.status).toBe(200);
+    expect(get.data.activeVersionId).toBe(patch.data.activeVersionId);
+    expect(get.data.instructions).toBe('third');
   });
 
   it('GET /api/stored/agents/:id/versions/compare rejects missing from/to with a structured 400', async () => {
