@@ -245,3 +245,64 @@ the graph UI — the panel shows only a "Failed" badge + run id, with no
 asserts only the `failed` *status* (via `data-workflow-step-status`); the
 error-text assertion (`Intentional failure for smoke test`) was dropped.
 Restore it once the graph UI re-exposes failed-step error detail.
+
+---
+
+## 10. Concurrent MCP sessions crash the server (upstream, unfixed)
+
+**Symptom**
+
+The entire API run collapses mid-suite. One test fails with a real error, then
+every subsequent request fails with `TypeError: fetch failed` /
+`SocketError: other side closed` / `ECONNREFUSED`, because the **server process
+died**. In CI this looks like a total API wipeout with no obvious single cause.
+
+The server log contains:
+
+```
+TypeError [ERR_INVALID_STATE]: Invalid state: Controller is already closed
+    at ReadableStreamDefaultController.enqueue (node:internal/webstreams/readablestream:1077:13)
+    at FetchServerResponse._onDataWritten (.mastra/output/index.mjs)
+    at WrittenDataBuffer._flush (.mastra/output/index.mjs)
+    at Timeout.connectionCorkNT [as _onTimeout] (.mastra/output/index.mjs)
+```
+
+**Cause**
+
+Upstream bug in the bundled `fetch-to-node@2.1.0` response adapter. The
+response body `ReadableStream` closes its controller on `finish`, but a
+**corked write can flush later from a timer** (`connectionCorkNT`) and call
+`controller.enqueue()` on the now-closed controller. There is also no
+`cancel()` handler, so consumer-side cancellation closes the controller
+without setting the `finished` guard.
+
+Because the throw happens in a **timer callback** rather than inside a
+promise, it is not catchable — our `--unhandled-rejections=warn` setting in
+`tests/setup.ts` does **not** help, and the process dies unconditionally.
+
+The trigger in this suite is `tests/mcp/client.test.ts`: the long-lived
+`GET /api/mcp/test-mcp/mcp` Streamable-HTTP SSE streams, held open while the
+rest of the suite drives concurrent load.
+
+**Version sensitivity** — latent bug, lowered threshold (not a new regression):
+
+| Stack | 6 concurrent MCP sessions | 12 |
+| --- | --- | --- |
+| `@mastra/core@1.53.0-alpha.1` | survives | crashes |
+| `@mastra/core@1.54.0-alpha.3` | crashes | crashes |
+
+`fetch-to-node@2.1.0` is byte-identical between the two, so 1.54 merely
+reaches the race with less concurrency. This is why the failure appeared to
+"start" at 1.54 while 1.53 was green.
+
+**Status**
+
+Upstream issue: https://github.com/mastra-ai/mastra/issues/20332
+
+Not fixable smoke-side — the crash is inside the server's HTTP adapter, and
+no test-level change can prevent an uncatchable throw in a timer. Verified
+that guarding the single `controller.enqueue()` call in the built bundle turns
+the crash into a no-op and the suite passes 363/363, which confirms the
+diagnosis but is not a shippable workaround (`.mastra/output` is generated).
+
+Expect red API runs until an upstream fix ships.
