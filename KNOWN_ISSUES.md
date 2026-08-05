@@ -245,3 +245,29 @@ the graph UI — the panel shows only a "Failed" badge + run id, with no
 asserts only the `failed` *status* (via `data-workflow-step-status`); the
 error-text assertion (`Intentional failure for smoke test`) was dropped.
 Restore it once the graph UI re-exposes failed-step error detail.
+
+## 10. MCP disconnect crashes the server after the 15s keepalive
+
+**Symptom**
+
+Disconnecting a Streamable HTTP MCP client leaves its SSE keepalive alive. Its
+next write runs after the outer response stream has been cancelled and crashes
+the process with `ERR_INVALID_STATE: Controller is already closed`. Under the
+full API suite, later tests fail with `terminated` or `ECONNREFUSED`.
+
+**Cause**
+
+The `fetch-to-node` response bridge does not propagate Web Stream cancellation
+as a Node response `close` event, so the MCP transport never clears its
+keepalive timer. See upstream issue
+[mastra-ai/mastra#20332](https://github.com/mastra-ai/mastra/issues/20332) and
+fix PR [#20642](https://github.com/mastra-ai/mastra/pull/20642).
+
+**Temporary workaround**
+
+`pnpm build` runs `scripts/patch-mcp-stream-cancellation.mjs` after
+`mastra build`. The script patches the generated response adapter with
+cancellation guards and emits `close` so the inner MCP stream clears its timer.
+It refuses to modify an unrecognized vulnerable adapter and becomes a no-op
+when the upstream fix is detected. Remove the script and build hook after
+#20642 is included in the published alpha.

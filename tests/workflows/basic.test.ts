@@ -29,7 +29,7 @@ describe('basic workflows', () => {
       });
 
       // zod 4: "Too big" / "<=100", zod 3: "Number must be less than or equal to 100"
-      expect(status).toBe(500);
+      expect(status).toBe(400);
       expect(data.error).toMatch(/Too big|less than or equal to 100/i);
     });
 
@@ -39,7 +39,7 @@ describe('basic workflows', () => {
       });
 
       // zod 4: "expected number, received string", zod 3: "Expected number, received string"
-      expect(status).toBe(500);
+      expect(status).toBe(400);
       expect(data.error).toMatch(/expected number, received string/i);
     });
 
@@ -67,7 +67,7 @@ describe('basic workflows', () => {
       });
 
       // zod 4: "Too small", zod 3: "Number must be greater than or equal to 0"
-      expect(status).toBe(500);
+      expect(status).toBe(400);
       expect(data.error).toMatch(/Too small|greater than or equal to 0/i);
     });
   });
