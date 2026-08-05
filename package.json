@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.30.1",
   "scripts": {
-    "build": "npx mastra build --studio",
+    "build": "npx mastra build --studio && node scripts/patch-mcp-stream-cancellation.mjs",
     "dev": "npx mastra dev",
     "test": "vitest run",
     "test:ui": "playwright test",
