@@ -54,7 +54,9 @@ describe('edge cases', () => {
       );
 
       expect(status).toBe(500);
-      expect(data.error).toContain("Time travel target step not found in execution graph: 'nonexistent-step'");
+      expect(data.error).toContain("Cannot time travel to step 'nonexistent-step'");
+      expect(data.error).toContain('the step does not exist in the current execution graph');
+      expect(data.error).toContain('The stored snapshot has not been modified');
     });
   });
 
