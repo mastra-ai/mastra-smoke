@@ -231,11 +231,17 @@ describe('datasets', () => {
         });
       });
 
-      it('should return 404 for item at non-existent version', async () => {
-        const res = await fetchApi(
+      it('should return the current item when it is visible in a later dataset snapshot', async () => {
+        const { status, data } = await fetchJson<any>(
           `/api/datasets/${datasetId}/items/${itemId}/versions/99999`,
         );
-        expect(res.status).toBe(404);
+
+        expect(status).toBe(200);
+        expect(data).toMatchObject({
+          id: itemId,
+          datasetId,
+          groundTruth: { answer: 'four' },
+        });
       });
     });
 
