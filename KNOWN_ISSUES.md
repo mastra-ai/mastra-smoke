@@ -159,25 +159,15 @@ Playwright tests don't hit this because the test runner uses a single
 host (`127.0.0.1:4555`) end-to-end. No action required for the smoke
 suite, but worth knowing when probing UI with agent-browser.
 
-## 7. Edit Dataset dialog never unmounts after dismissal (awaiting upstream fix)
-
-**Symptom**
+## 7. Edit Dataset dialog never unmounted after dismissal (resolved)
 
 On `mastra@1.13.0-alpha.4` Studio, the dataset detail "Edit Dataset"
-dialog stays fully rendered on screen after Close, Cancel, or Escape.
-Base UI marks it `data-closed` + `data-ending-style`, the
-`dialog-content-out` animation runs to completion, but the element is
-never removed — opacity returns to 1 and the dialog visually persists.
-Confirmed both in Playwright and in a hand-driven agent-browser session
-(screenshot 3s after Cancel still shows the dialog). Saving works: the
-PATCH lands and the dataset updates; only the dismissal is broken.
+dialog stayed rendered after Close, Cancel, or Escape. The smoke test
+temporarily asserted its logical `data-closed` state instead of unmounting.
 
-**Workaround**
-
-`datasets.spec.ts › edit dataset name and description` asserts
-`toHaveAttribute('data-closed', '')` (logical close) instead of
-`not.toBeVisible()` (unmount) until the upstream fix lands. Revert to
-the unmount assertion once fixed.
+As of `@mastra/core@1.63.0-alpha.0`, dataset editing uses a dedicated
+`/datasets/:id/edit` page instead of this dialog. The obsolete workaround
+has been removed from `datasets.spec.ts`.
 
 ## 8. API working-memory tests intermittently time out (upstream)
 

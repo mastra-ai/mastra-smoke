@@ -217,12 +217,12 @@ test.describe('Agent Chat', () => {
     const toolBadge = page.getByTestId('tool-badge');
     await expect(toolBadge.first()).toBeVisible({ timeout: 30_000 });
 
-    // Verify the tool badge shows the calculator tool name
-    await expect(toolBadge.first()).toContainText('calculator');
+    // Studio formats tool IDs as display names in chat badges.
+    await expect(toolBadge.first()).toContainText(/calculator/i);
 
-    // Click the tool badge to expand it and check for tool arguments
+    // Click the tool badge to expand it and verify the rendered arguments.
     await toolBadge.first().locator('button').first().click();
-    await expect(page.getByText('Tool arguments')).toBeVisible({ timeout: 5_000 });
+    await expect(toolBadge.first()).toContainText('"operation": "add"');
   });
 
   test('memory tab shows working memory', async ({ page }) => {
@@ -256,7 +256,7 @@ test.describe('Agent Chat', () => {
     const thread = page.getByTestId('thread-wrapper');
     const toolBadge = thread.getByTestId('tool-badge');
     await expect(toolBadge.first()).toBeVisible({ timeout: 30_000 });
-    await expect(toolBadge.first()).toContainText('needs-approval');
+    await expect(toolBadge.first().getByRole('button', { name: 'Needs approval' })).toBeVisible();
 
     // "Approval required" text should be visible (badge auto-expands for approval tools)
     await expect(page.getByText('Approval required')).toBeVisible({ timeout: 10_000 });
@@ -268,10 +268,8 @@ test.describe('Agent Chat', () => {
     // Click Approve
     await page.getByRole('button', { name: 'Approve' }).click();
 
-    // After approval, the tool should execute and show the greeting result
-    await expect(page.getByText('Tool result')).toBeVisible({ timeout: 30_000 });
-    // The tool returns { greeting: "Hello, John!" } — verify the result contains the name
-    await expect(page.getByTestId('tool-result')).toContainText('John');
+    // After approval, the expanded badge should render the greeting result.
+    await expect(toolBadge.first()).toContainText('"greeting": "Hello, John!"', { timeout: 30_000 });
   });
 
   test('agent overview shows correct tools list', async ({ page }) => {

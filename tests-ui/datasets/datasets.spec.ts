@@ -1,13 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// The dataset detail page no longer renders the dataset name as an <h1>; the
-// page header <h1> is the generic "Dataset" and the name only shows in the
-// breadcrumb picker (not reliably selected on first load). The dataset
-// description is rendered as a paragraph in the header, so assert on the
-// description (unique per test) to confirm the detail page has loaded.
-async function expectDatasetLoaded(page: Page, description: string | RegExp) {
+async function expectDatasetLoaded(page: Page, datasetName: string | RegExp) {
   await expect(page.getByRole('heading', { name: 'Dataset', level: 1 })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('link', { name: datasetName, exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Datasets', () => {
@@ -22,24 +17,20 @@ test.describe('Datasets', () => {
   test('create dataset and verify it appears in list', async ({ page }) => {
     await page.goto('/datasets');
 
-    // Open create dialog
+    // Dataset creation now uses a dedicated page instead of a dialog.
     await page.getByRole('button', { name: 'Create Dataset' }).first().click();
-    await expect(page.getByRole('dialog', { name: 'Create Dataset' })).toBeVisible();
+    await expect(page).toHaveURL(/\/datasets\/new$/);
+    await expect(page.getByRole('heading', { name: 'Create new dataset' }).first()).toBeVisible();
 
-    // Create Dataset button should be disabled with empty name
-    const submitBtn = page.getByRole('dialog').getByRole('button', { name: 'Create Dataset' });
+    const submitBtn = page.getByRole('button', { name: 'Create Dataset' });
     await expect(submitBtn).toBeDisabled();
 
-    // Fill form
-    await page.getByRole('textbox', { name: 'Name *' }).fill('E2E Test Dataset');
+    await page.getByRole('textbox', { name: 'Name (required)' }).fill('E2E Test Dataset');
     await page.getByRole('textbox', { name: 'Description' }).fill('Created by smoke tests');
 
-    // Submit
     await expect(submitBtn).toBeEnabled();
     await submitBtn.click();
-
-    // Dialog should close
-    await expect(page.getByRole('dialog', { name: 'Create Dataset' })).not.toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/datasets\/[^/]+$/, { timeout: 10_000 });
 
     // Reload the page to ensure the new dataset is visible in the list
     await page.goto('/datasets');
@@ -60,13 +51,12 @@ test.describe('Datasets', () => {
 
     // Navigate to dataset detail
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'For item tests');
+    await expectDatasetLoaded(page, 'Items Test Dataset');
 
-    // Should show empty items tab initially — the "Add Item" button should be present
-    await expect(page.getByRole('button', { name: 'Add Item' })).toBeVisible();
+    // Should show empty items tab initially — the single-item action should be present.
+    await expect(page.getByRole('button', { name: 'Add Single Item' })).toBeVisible();
 
-    // Click "Add Item" to open dialog
-    await page.getByRole('button', { name: 'Add Item' }).click();
+    await page.getByRole('button', { name: 'Add Single Item' }).click();
     await expect(page.getByRole('dialog', { name: 'Add Item' })).toBeVisible();
 
     // The dialog has textbox editors for Input and Ground Truth
@@ -117,40 +107,30 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'Old description');
+    await expectDatasetLoaded(page, 'Before Edit');
 
     // Open actions menu → Edit Dataset
     await page.getByRole('button', { name: 'Dataset actions menu' }).first().click();
     await page.getByRole('menuitem', { name: 'Edit Dataset' }).click();
 
-    const dialog = page.getByRole('dialog', { name: 'Edit Dataset' });
-    await expect(dialog).toBeVisible();
+    // Dataset editing now uses a dedicated page instead of a dialog.
+    await expect(page).toHaveURL(new RegExp(`/datasets/${datasetId}/edit$`));
+    await expect(page.getByRole('heading', { name: 'Edit dataset' }).first()).toBeVisible();
 
-    // Verify pre-filled values
-    const nameInput = dialog.getByRole('textbox', { name: 'Name *' });
+    const nameInput = page.getByRole('textbox', { name: 'Name (required)' });
     await expect(nameInput).toHaveValue('Before Edit');
 
-    // Change name and description
-    await nameInput.clear();
     await nameInput.fill('After Edit');
-    const descInput = dialog.getByRole('textbox', { name: 'Description' });
-    await descInput.clear();
-    await descInput.fill('New description');
+    await page.getByRole('textbox', { name: 'Description' }).fill('New description');
 
-    // The dialog no longer auto-closes after saving (it also hosts the schema
-    // configuration section). Wait for the save to land, then close it.
     const patchPromise = page.waitForResponse(
       (r) => r.request().method() === 'PATCH' && r.url().includes(`/api/datasets/${datasetId}`),
       { timeout: 10_000 },
     );
-    await dialog.getByRole('button', { name: 'Save Changes' }).click();
+    await page.getByRole('button', { name: 'Save Changes' }).click();
     expect((await patchPromise).ok()).toBeTruthy();
-    // Upstream bug: the Edit Dataset dialog's Close button never stabilises
-    // (perpetual animation), so a normal click times out. Use Escape to
-    // dismiss and assert the logical close state. See KNOWN_ISSUES.md.
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveAttribute('data-closed', '', { timeout: 10_000 });
-    await expectDatasetLoaded(page, 'New description');
+    await expect(page).toHaveURL(new RegExp(`/datasets/${datasetId}$`), { timeout: 10_000 });
+    await expectDatasetLoaded(page, 'After Edit');
 
     // Clean up
     await request.delete(`/api/datasets/${datasetId}`);
@@ -171,7 +151,7 @@ test.describe('Datasets', () => {
     expect(itemRes.ok()).toBeTruthy();
 
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'For item editing');
+    await expectDatasetLoaded(page, 'Edit Item Dataset');
 
     // Click item button to open detail panel
     await page.getByRole('button', { name: /original/ }).click();
@@ -256,7 +236,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'For tab test');
+    await expectDatasetLoaded(page, 'Experiments Tab Dataset');
 
     // Switch to Experiments tab
     await page.getByRole('tab', { name: /Experiments/ }).click();
@@ -285,7 +265,7 @@ test.describe('Datasets', () => {
 
     // Navigate to dataset detail
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'Will be deleted');
+    await expectDatasetLoaded(page, uniqueName);
 
     // Open actions menu and click Delete
     await page.getByRole('button', { name: 'Dataset actions menu' }).first().click();
@@ -315,7 +295,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'For JSON import test');
+    await expectDatasetLoaded(page, 'JSON Import Dataset');
 
     // On an empty dataset, Import JSON is a direct button in the empty state
     await page.getByRole('button', { name: 'Import JSON' }).click();
@@ -375,7 +355,7 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'For CSV import test');
+    await expectDatasetLoaded(page, 'CSV Import Dataset');
 
     // On an empty dataset, Import CSV is a direct button in the empty state
     await page.getByRole('button', { name: 'Import CSV' }).click();
@@ -419,8 +399,9 @@ test.describe('Datasets', () => {
 
   test('trigger experiment with scorer and view results', async ({ page, request }) => {
     // Create dataset via API
+    const datasetName = `Experiment Dataset ${Date.now()}`;
     const createRes = await request.post('/api/datasets', {
-      data: { name: `Experiment Dataset ${Date.now()}`, description: 'For experiment test' },
+      data: { name: datasetName, description: 'For experiment test' },
     });
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
@@ -441,37 +422,34 @@ test.describe('Datasets', () => {
 
     // Navigate to dataset page
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'For experiment test');
+    await expectDatasetLoaded(page, datasetName);
 
     // Click "Run Experiment"
     await page.getByRole('button', { name: /Run Experiment/ }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('heading', { name: 'Run Experiment' })).toBeVisible();
 
-    // Select Target Type → Scorer
-    await dialog.getByRole('combobox').first().click();
-    await dialog.getByRole('option', { name: 'Scorer' }).click();
+    // Dataset and version selectors precede Target Type in the redesigned dialog.
+    await dialog.getByRole('combobox').nth(2).click();
+    await page.getByRole('option', { name: 'Scorer' }).click();
 
-    // Select Target → completeness (may have duplicates from stale CMS entries)
-    await dialog.getByRole('combobox').nth(1).click();
-    await dialog.getByRole('option', { name: 'Completeness Scorer', exact: true }).first().click();
+    // Selecting a target type inserts the Target selector before optional scorers.
+    await dialog.getByRole('combobox').nth(3).click();
+    await page.getByRole('option', { name: 'Completeness Scorer', exact: true }).first().click();
 
     // Click Run
     await dialog.getByRole('button', { name: 'Run' }).click();
 
-    // After triggering, the page should navigate to the experiment detail page
-    await page.waitForURL(/\/datasets\/.*\/experiments\//, { timeout: 15_000 });
+    // Experiment details now live at the top-level /experiments route.
+    await page.waitForURL(/\/experiments\/[^/]+$/, { timeout: 15_000 });
 
-    // Wait for the experiment to complete
-    await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 30_000 });
+    // The redesigned experiment page summarizes successful completion as "All passed".
+    await expect(page.getByText('All passed', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('link', { name: datasetName })).toBeVisible();
+    await expect(page.locator('main')).toContainText(/v2\s*·\s*2 items/);
 
-    // Verify stats show our 2 items succeeded
-    await expect(page.getByText('Total:')).toBeVisible();
-    await expect(page.getByText('Succeeded:')).toBeVisible();
-
-    // Verify the target is shown as Completeness Scorer
-    await expect(page.getByText('Target')).toBeVisible();
-    await expect(page.getByText('Completeness Scorer').first()).toBeVisible();
+    // Verify the target is shown as Completeness Scorer.
+    await expect(page.getByRole('link', { name: 'Completeness Scorer' })).toBeVisible();
 
     // Switch to Results tab and verify concrete result rows from our seeded items
     await page.getByRole('tab', { name: 'Results' }).click();
