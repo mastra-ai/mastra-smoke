@@ -36,7 +36,7 @@ test.describe('Observability', () => {
     test.slow();
 
     // Send a message to generate an agent trace
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
     await fillAndSend(page, 'Say hi');
     await waitForAssistantMessage(page);
 

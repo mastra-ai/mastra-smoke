@@ -110,7 +110,7 @@ want the suite to exit on completion.
 
 Sporadic failures in `agent-chat.spec.ts`, `agent-features.spec.ts`,
 `memory/memory-threads.spec.ts` on
-`expect(page).toHaveURL(/\/chat\/(?!new)/)`. The URL never transitions
+`expect(page).toHaveURL(/\/threads\/(?!new)/)`. The URL never transitions
 because the model stream is still in flight.
 
 **Cause**
@@ -261,3 +261,35 @@ cancellation guards and emits `close` so the inner MCP stream clears its timer.
 It refuses to modify an unrecognized vulnerable adapter and becomes a no-op
 when the upstream fix is detected. Remove the script and build hook after
 #20642 is included in the published alpha.
+
+## 11. Standalone agent threads omit working-memory viewer/editor
+
+**Symptom**
+
+On `mastra@1.27.3-alpha.1`, `/agents/:agentId/threads/:threadId` has no
+Memory launcher, working-memory content panel, or "Edit Working Memory"
+action. The overview still shows memory *configuration*, but users cannot
+inspect or edit a thread's current working memory.
+
+**Cause**
+
+The standalone-thread redesign in upstream PR #22675 renders `ThreadSidebar`
+and `AgentChat` from `pages/agents/agent/thread.tsx`, but does not render the
+existing `MemorySidebar` component. See upstream issue
+[mastra-ai/mastra#22762](https://github.com/mastra-ai/mastra/issues/22762).
+
+**Smoke handling**
+
+The two working-memory UI tests remain in `memory-threads.spec.ts` as explicit
+skips linked to #22762, and `tests-ui/COVERAGE.md` marks both surfaces blocked.
+Re-enable them when Studio restores a per-thread working-memory viewer/editor.
+
+## 12. Standalone agent thread sidebar has no delete action
+
+The thread redesign maps each persisted thread directly to a
+`MainSidebar.NavLink` with no action menu or delete callback. The prior
+`delete thread` action and confirmation dialog are therefore unavailable.
+See [mastra-ai/mastra#22763](https://github.com/mastra-ai/mastra/issues/22763).
+
+The delete-thread UI test remains as an explicit skip linked to #22763. Restore
+it when the standalone sidebar supports deleting a thread again.

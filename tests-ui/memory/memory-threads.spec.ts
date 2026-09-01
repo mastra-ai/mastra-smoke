@@ -1,66 +1,56 @@
 import { test, expect, Page } from '@playwright/test';
 import { fillAndSend, waitForAssistantMessage } from '../helpers';
 
-/**
- * Expand the left-slot collapsible panel if it's collapsed.
- * Waits for the panel content to be ready first.
- */
-async function expandLeftPanel(page: Page) {
-  const leftPanel = page.locator('#left-slot');
-  // Wait for panel to render
-  await expect(leftPanel).toBeVisible({ timeout: 10_000 });
-
-  const newChatLink = leftPanel.getByRole('link', { name: 'New Chat' });
-  const isExpanded = await newChatLink.isVisible().catch(() => false);
-  if (!isExpanded) {
-    // Panel is collapsed — click the expand button
-    await leftPanel.locator('button').first().click();
-  }
-  await expect(newChatLink).toBeVisible({ timeout: 10_000 });
+/** Wait for the standalone thread sidebar to load. */
+async function waitForThreadSidebar(page: Page) {
+  await expect(page.getByRole('link', { name: 'New Chat' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Memory & Threads', () => {
   test('thread list shows threads after chat', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
 
     // Wait for the chat input to be ready (page fully loaded)
     await expect(page.getByPlaceholder('Enter your message...')).toBeEditable({ timeout: 15_000 });
 
     // Send a message to create a new thread
     await fillAndSend(page, 'Thread list test message');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page);
 
     // Extract the thread ID from the URL
     const threadUrl = new URL(page.url());
-    const threadPath = threadUrl.pathname; // e.g. /agents/test-agent/chat/<threadId>
+    const threadPath = threadUrl.pathname; // e.g. /agents/test-agent/threads/<threadId>
 
     // Expand the thread sidebar
-    await expandLeftPanel(page);
-    const leftPanel = page.locator('#left-slot');
+    await waitForThreadSidebar(page);
+    const leftPanel = page.getByRole('navigation', { name: 'Main' });
 
     // Verify the specific thread we created appears in the sidebar
     const threadLink = leftPanel.locator(`a[href="${threadPath}"]`);
     await expect(threadLink).toBeVisible({ timeout: 10_000 });
   });
 
-  test('delete a thread', async ({ page }) => {
+  // Blocked by mastra-ai/mastra#22763: the standalone thread sidebar no longer
+  // renders a per-thread delete action.
+  test.skip('delete a thread', async ({ page }) => {
     test.slow();
     await page.setViewportSize({ width: 1600, height: 900 });
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
 
     // Send a message to create a thread we can delete
     await fillAndSend(page, 'Thread to be deleted');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page);
 
     // Extract the thread path from the URL so we can target this specific thread
     const threadPath = new URL(page.url()).pathname;
 
     // Expand the thread sidebar
-    await expandLeftPanel(page);
-    const leftPanel = page.locator('#left-slot');
+    await waitForThreadSidebar(page);
+    const leftPanel = page.getByRole('navigation', { name: 'Main' });
 
     // Find the specific thread entry we just created
     const threadLink = leftPanel.locator(`a[href="${threadPath}"]`);
@@ -95,9 +85,11 @@ test.describe('Memory & Threads', () => {
   test.describe('working memory [@llm]', () => {
     test.describe.configure({ retries: 3 });
 
-  test('working memory display', async ({ page }) => {
+  // Blocked by mastra-ai/mastra#22762: the standalone thread redesign no longer
+  // renders the working-memory viewer/editor.
+  test.skip('working memory display', async ({ page }) => {
     test.slow();
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
 
     // Working memory now lives behind the "Memory" button in the left panel.
     // Before a thread exists it should show a hint.
@@ -108,7 +100,7 @@ test.describe('Memory & Threads', () => {
     // Send a message that gives the agent user information to store in working memory.
     // Working-memory tool call adds an LLM round-trip — give the URL transition extra slack.
     await fillAndSend(page, 'My name is SmokeTestUser99 and I live in San Francisco.');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
     // The memory panel stays open after chat and auto-refreshes with working
@@ -127,15 +119,15 @@ test.describe('Memory & Threads', () => {
     await expect(memoryPanel).toContainText(/San Francisco/i, { timeout: 10_000 });
   });
 
-  test('working memory editing', async ({ page }) => {
+  test.skip('working memory editing', async ({ page }) => {
     test.slow();
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
 
     // Send a message to create a thread with working memory.
     // The agent triggers a working-memory tool call before the user-visible reply,
     // which can push the URL transition past the default 20s on a slow LLM round-trip.
     await fillAndSend(page, 'My name is EditTestUser77 and I like pizza.');
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 90_000 });
     await waitForAssistantMessage(page, 45_000);
 
     // The memory panel stays open after chat and auto-refreshes with working
