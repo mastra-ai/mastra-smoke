@@ -62,8 +62,8 @@ test.describe('Request Context', () => {
     await expect(page.getByText('Request context saved successfully')).toBeVisible({ timeout: 5_000 });
 
     // 2. Navigate to agent chat and intercept the send-message call
-    await page.goto('/agents/test-agent/chat/new');
-    await expect(page.getByRole('heading', { name: 'Test Agent' })).toBeVisible({ timeout: 10_000 });
+    await page.goto('/agents/test-agent/threads/new');
+    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Test Agent');
 
     // Intercept the POST to the agent send-message endpoint. The streamed request body
     // is only readable via route.request().postData() during interception — passive
@@ -112,8 +112,8 @@ test.describe('Request Context', () => {
 
     // 4. Navigate to agent chat again and verify requestContext is empty
     let capturedBodyAfter: SendMessageBody | null = null;
-    await page.goto('/agents/test-agent/chat/new');
-    await expect(page.getByRole('heading', { name: 'Test Agent' })).toBeVisible({ timeout: 10_000 });
+    await page.goto('/agents/test-agent/threads/new');
+    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Test Agent');
 
     await page.route(SEND_MESSAGE_ROUTE, async (route) => {
       const request = route.request();

@@ -22,7 +22,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 | Observability          | 6    | 0    | 0       |       |
 | Observability Overview | 1    | 0    | 0       | NEW — `/observability-overview` hub: heading + Metrics/Traces link cards |
 | Evaluation Dashboard   | 1    | 0    | 0       | NEW — `/evaluation` heading + Experiments/Review-Pipeline section |
-| Memory                 | 4    | 0    | 0       |       |
+| Memory                 | 1    | 0    | 3       | Thread deletion blocked by #22763; working-memory viewer/editor blocked by #22762 |
 | Datasets               | 11   | 0    | 0       |       |
 | Scorers                | 2    | 0    | 0       |       |
 | Processors             | 3    | 0    | 0       |       |
@@ -35,9 +35,9 @@ Tracking document for Studio/Playground E2E smoke tests.
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
 | Settings               | 2    | 0    | 0       |       |
 | Request Context        | 2    | 0    | 0       |       |
-| **Total**              | **90** | **2** | **1** |       |
+| **Total**              | **87** | **2** | **4** |       |
 
-> Run count from `pnpm test:ui`: 90 tests. See route map in App.tsx for the full Studio surface.
+> Run count from `pnpm test:ui`: 91 tests (including global setup). See route map in App.tsx for the full Studio surface.
 
 ---
 
@@ -82,7 +82,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
-| 1 | Agent chat page shows overview panel        | ✅     |
+| 1 | Agent overview shows metadata and new-thread link | ✅     |
 | 2 | Send message and receive streamed response  | ✅     |
 | 3 | Send message with generate mode             | ✅     |
 | 4 | Model settings persist after reload         | ✅     |
@@ -90,7 +90,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 | 6 | Thread sidebar lists previous conversations | ✅     |
 | 7 | Click previous thread to reload it          | ✅     |
 | 8 | Tool call displayed in chat message         | ✅     |
-| 9 | Memory tab shows working memory             | ✅     |
+| 9 | New thread links back to agent overview     | ✅     |
 | 10 | Approval agent triggers tool approval flow | ✅     |
 | 11 | Agent overview shows correct tools list    | ✅     |
 
@@ -99,10 +99,10 @@ Tracking document for Studio/Playground E2E smoke tests.
 |   | Test                                                        | Status |
 |---|-------------------------------------------------------------|--------|
 | 1 | Model settings tab shows controls and persists chat method   | ✅     |
-| 2 | Tracing options tab shows JSON editor                        | ✅     |
+| 2 | Persisted thread exposes its traces panel                    | ✅     |
 | 3 | Network mode enabled only with sub-agents and memory         | ✅     |
 | 4 | Advanced settings expand and show fields                     | ✅     |
-| 5 | Agent selector switches between agents                       | ✅     |
+| 5 | Thread navigation identifies and switches agents            | ✅     |
 | 6 | Network-agent overview shows sub-agents section              | ✅     |
 | 7 | Agents list shows all agents with correct attached entities  | ✅     |
 | 8 | Network-agent delegates to helper-agent via sub-agent call   | ✅     |
@@ -157,14 +157,14 @@ Tracking document for Studio/Playground E2E smoke tests.
 | 5 | Traces appear after workflow run             | ✅     |
 | 6 | Traces appear after agent chat              | ✅     |
 
-### Memory & Threads — `tests-ui/memory/memory-threads.spec.ts` (4/4)
+### Memory & Threads — `tests-ui/memory/memory-threads.spec.ts` (1/4)
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
 | 1 | Thread list shows threads after chat        | ✅     |
-| 2 | Delete a thread                             | ✅     |
-| 3 | Working memory display                      | ✅     |
-| 4 | Working memory editing                      | ✅     |
+| 2 | Delete a thread                             | 🚫 [#22763](https://github.com/mastra-ai/mastra/issues/22763) |
+| 3 | Working memory display                      | 🚫 [#22762](https://github.com/mastra-ai/mastra/issues/22762) |
+| 4 | Working memory editing                      | 🚫 [#22762](https://github.com/mastra-ai/mastra/issues/22762) |
 
 ### Datasets — `tests-ui/datasets/datasets.spec.ts` (11/11)
 

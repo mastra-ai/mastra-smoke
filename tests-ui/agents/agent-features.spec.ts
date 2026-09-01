@@ -13,7 +13,7 @@ async function openModelSettings(page: Page) {
 
 test.describe('Agent Features', () => {
   test('model settings tab shows controls and persists chat method', async ({ page }) => {
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
 
     // Open the Model settings dialog
     await openModelSettings(page);
@@ -44,23 +44,21 @@ test.describe('Agent Features', () => {
     await expect(page.getByRole('radio', { name: 'Generate' })).toBeChecked();
   });
 
-  test('tracing options shows JSON editor via Run options', async ({ page }) => {
-    await page.goto('/agents/test-agent/chat/new');
+  test('persisted thread exposes its traces panel', async ({ page }) => {
+    await page.goto('/agents/test-agent/threads/new');
+    await fillAndSend(page, 'Say hello and nothing else.');
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
+    await waitForAssistantMessage(page);
 
-    // Tracing Options moved from a tab to the "Run options" composer button
-    await page.getByRole('button', { name: 'Run options' }).click();
-
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
-
-    // The dialog shows "Tracing Options" label and contains a JSON editor
-    await expect(dialog.getByText('Tracing Options')).toBeVisible();
-    await expect(dialog.getByRole('textbox').first()).toBeVisible();
+    // Traces are now scoped to a persisted standalone thread.
+    await page.getByRole('button', { name: 'Traces' }).click();
+    await expect(page.getByRole('heading', { name: 'Traces' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Close Panel' })).toBeVisible();
   });
 
   test('model settings: network mode enabled only with sub-agents and memory', async ({ page }) => {
     // networkAgent has both memory and sub-agents — Network should be enabled
-    await page.goto('/agents/network-agent/chat/new');
+    await page.goto('/agents/network-agent/threads/new');
     await openModelSettings(page);
 
     const networkRadio = page.getByRole('radio', { name: 'Network' });
@@ -68,7 +66,7 @@ test.describe('Agent Features', () => {
     await expect(networkRadio).toBeEnabled();
 
     // testAgent has memory but no sub-agents — Network should be disabled
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
     await openModelSettings(page);
 
     const disabledNetworkRadio = page.getByRole('radio', { name: 'Network' });
@@ -77,7 +75,7 @@ test.describe('Agent Features', () => {
   });
 
   test('model settings: advanced settings expand and show fields', async ({ page }) => {
-    await page.goto('/agents/test-agent/chat/new');
+    await page.goto('/agents/test-agent/threads/new');
     await openModelSettings(page);
 
     // Expand advanced settings
@@ -90,45 +88,30 @@ test.describe('Agent Features', () => {
     await expect(page.getByText('Max Steps')).toBeVisible();
   });
 
-  test('agent selector reflects current agent and switching agents updates it', async ({ page }) => {
-    await page.goto('/agents/test-agent/chat/new');
+  test('thread navigation reflects the active agent and supports switching agents', async ({ page }) => {
+    await page.goto('/agents/test-agent/threads/new');
+    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Test Agent');
 
-    // The agent selector combobox in the chat header reflects the active agent.
-    // Studio moved the picker to a breadcrumb-style combobox whose option list
-    // is a portaled dialog that does not surface as role=option under test, so
-    // we exercise switching via the agents list (the supported navigation path)
-    // and assert the selector reflects the newly selected agent.
-    await expect(page.getByRole('combobox').filter({ hasText: 'Test Agent' })).toBeVisible();
-
-    // Switch to a different agent via the agents list.
+    // Switch agents through the supported agents-list navigation path.
     await page.goto('/agents');
     await page.getByRole('link', { name: /^Helper Agent\b/ }).click();
+    await expect(page).toHaveURL(/\/agents\/helper-agent\/overview/);
 
-    // Lands on the helper agent page with its heading...
-    await expect(page).toHaveURL(/\/agents\/helper-agent/);
-    await expect(page.locator('h2:has-text("Helper Agent")')).toBeVisible();
-
-    // ...and the chat-header selector now reflects Helper Agent.
-    await expect(page.getByRole('combobox').filter({ hasText: 'Helper Agent' })).toBeVisible();
+    // Start a helper-agent thread and verify the standalone thread identifies it.
+    await page.getByTestId('agent-view-header-new-chat').click();
+    await expect(page).toHaveURL('/agents/helper-agent/threads/new');
+    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Helper Agent');
   });
 
   test('network-agent overview shows sub-agents section', async ({ page }) => {
-    await page.goto('/agents/network-agent/chat/new');
+    await page.goto('/agents/network-agent/overview');
 
-    // Overview content is behind the agent-view-header-toggle
-    await expect(page.locator('h2:has-text("Network Agent")')).toBeVisible();
-    await page.getByTestId('agent-view-header-toggle').click();
-
-    // Sub-agents section with "Agents" heading
     await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Helper Agent' })).toBeVisible();
 
-    // Helper Agent should be listed as a sub-agent
-    await expect(page.getByText('Helper Agent')).toBeVisible();
-
-    // Click to navigate to the sub-agent
     await page.getByRole('link', { name: 'Helper Agent' }).click();
-    await expect(page).toHaveURL(/\/agents\/helper-agent/);
-    await expect(page.locator('h2:has-text("Helper Agent")')).toBeVisible();
+    await expect(page).toHaveURL(/\/agents\/helper-agent\/overview/);
+    await expect(page.getByTestId('agent-settings-view')).toBeVisible();
   });
 
   test('agents list shows all agents with correct attached entities', async ({ page }) => {
@@ -166,13 +149,13 @@ test.describe('Agent Features', () => {
   });
 
   test('network-agent delegates to helper-agent via sub-agent call', async ({ page }) => {
-    await page.goto('/agents/network-agent/chat/new');
+    await page.goto('/agents/network-agent/threads/new');
 
     // Stream is default — send a message that triggers delegation to the helper sub-agent
     await fillAndSend(page, 'Ask your helper agent to say the word "mango" and nothing else.');
 
     // Wait for navigation to thread URL
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
 
     // The sub-agent call should render as an AgentBadge in the chat thread
     const thread = page.getByTestId('thread-wrapper');
@@ -190,19 +173,18 @@ test.describe('Agent Features', () => {
   });
 
   test('workflow-agent triggers workflow and workflow badge renders in chat', async ({ page }) => {
-    await page.goto('/agents/workflow-agent/chat/new');
-
-    // Verify the overview shows the workflow is attached (behind header toggle)
-    await page.getByTestId('agent-view-header-toggle').click();
+    // Verify the dedicated overview shows the attached workflow.
+    await page.goto('/agents/workflow-agent/overview');
     await expect(page.getByRole('link', { name: 'sequential-steps' })).toBeVisible();
-    // Collapse overview so it doesn't interfere with the chat interaction
-    await page.getByTestId('agent-view-header-toggle').click();
+
+    await page.getByTestId('agent-view-header-new-chat').click();
+    await expect(page).toHaveURL('/agents/workflow-agent/threads/new');
 
     // Send a message that triggers the workflow
     await fillAndSend(page, 'Greet someone named Alice');
 
     // Wait for navigation to thread URL
-    await expect(page).toHaveURL(/\/chat\/(?!new)/, { timeout: 45_000 });
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
 
     // The workflow call should render as a WorkflowBadge in the chat thread
     const thread = page.getByTestId('thread-wrapper');

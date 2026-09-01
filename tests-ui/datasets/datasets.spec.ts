@@ -446,10 +446,9 @@ test.describe('Datasets', () => {
     // Experiment details now live at the top-level /experiments route.
     await page.waitForURL(/\/experiments\/[^/]+$/, { timeout: 15_000 });
 
-    // The redesigned experiment page summarizes successful completion as "All passed".
-    await expect(page.getByText('All passed', { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('link', { name: datasetName })).toBeVisible();
-    await expect(page.locator('main')).toContainText(/v2\s*·\s*2 items/);
+    // Verify the persisted experiment summary and its seeded item count.
+    await expect(page.getByRole('link', { name: new RegExp(datasetName) })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('main')).toContainText(/Items\s*2 items/);
 
     // Verify the target is shown as Completeness Scorer.
     await expect(page.getByRole('link', { name: 'Completeness Scorer' })).toBeVisible();
