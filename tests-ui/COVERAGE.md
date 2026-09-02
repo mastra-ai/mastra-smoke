@@ -22,7 +22,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 | Observability          | 6    | 0    | 0       |       |
 | Observability Overview | 1    | 0    | 0       | NEW — `/observability-overview` hub: heading + Metrics/Traces link cards |
 | Evaluation Dashboard   | 1    | 0    | 0       | NEW — `/evaluation` heading + Experiments/Review-Pipeline section |
-| Memory                 | 1    | 0    | 3       | Thread deletion blocked by #22763; working-memory viewer/editor blocked by #22762 |
+| Memory                 | 4    | 0    | 0       |       |
 | Datasets               | 11   | 0    | 0       |       |
 | Scorers                | 2    | 0    | 0       |       |
 | Processors             | 3    | 0    | 0       |       |
@@ -35,7 +35,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
 | Settings               | 2    | 0    | 0       |       |
 | Request Context        | 2    | 0    | 0       |       |
-| **Total**              | **87** | **2** | **4** |       |
+| **Total**              | **90** | **2** | **1** |       |
 
 > Run count from `pnpm test:ui`: 91 tests (including global setup). See route map in App.tsx for the full Studio surface.
 
@@ -162,9 +162,9 @@ Tracking document for Studio/Playground E2E smoke tests.
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
 | 1 | Thread list shows threads after chat        | ✅     |
-| 2 | Delete a thread                             | 🚫 [#22763](https://github.com/mastra-ai/mastra/issues/22763) |
-| 3 | Working memory display                      | 🚫 [#22762](https://github.com/mastra-ai/mastra/issues/22762) |
-| 4 | Working memory editing                      | 🚫 [#22762](https://github.com/mastra-ai/mastra/issues/22762) |
+| 2 | Delete a thread                             | ✅     |
+| 3 | Working memory display                      | ✅     |
+| 4 | Working memory editing                      | ✅     |
 
 ### Datasets — `tests-ui/datasets/datasets.spec.ts` (11/11)
 
@@ -176,7 +176,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 |  4 | Edit dataset name and description                | ✅     |
 |  5 | Edit item input and verify update                | ✅     |
 |  6 | Delete item from detail panel                    | ✅     |
-|  7 | Experiments tab shows empty state                | ✅     |
+|  7 | View experiments opens filtered global list     | ✅     |
 |  8 | Delete dataset removes it from list              | ✅     |
 |  9 | JSON import: upload file and import items        | ✅     |
 | 10 | CSV import: upload file and reach mapping        | ✅     |

@@ -262,34 +262,18 @@ It refuses to modify an unrecognized vulnerable adapter and becomes a no-op
 when the upstream fix is detected. Remove the script and build hook after
 #20642 is included in the published alpha.
 
-## 11. Standalone agent threads omit working-memory viewer/editor
+## 11. Standalone agent threads omitted working-memory viewer/editor (resolved)
 
-**Symptom**
-
-On `mastra@1.27.3-alpha.1`, `/agents/:agentId/threads/:threadId` has no
-Memory launcher, working-memory content panel, or "Edit Working Memory"
-action. The overview still shows memory *configuration*, but users cannot
-inspect or edit a thread's current working memory.
-
-**Cause**
-
-The standalone-thread redesign in upstream PR #22675 renders `ThreadSidebar`
-and `AgentChat` from `pages/agents/agent/thread.tsx`, but does not render the
-existing `MemorySidebar` component. See upstream issue
+The standalone-thread redesign in upstream PR #22675 initially omitted the
+working-memory viewer/editor. Upstream PR #22755 restored it and closed
 [mastra-ai/mastra#22762](https://github.com/mastra-ai/mastra/issues/22762).
+The fix is present in `mastra@1.27.3-alpha.10`, and both working-memory UI tests
+are enabled again.
 
-**Smoke handling**
+## 12. Standalone agent thread sidebar omitted its delete action (resolved)
 
-The two working-memory UI tests remain in `memory-threads.spec.ts` as explicit
-skips linked to #22762, and `tests-ui/COVERAGE.md` marks both surfaces blocked.
-Re-enable them when Studio restores a per-thread working-memory viewer/editor.
-
-## 12. Standalone agent thread sidebar has no delete action
-
-The thread redesign maps each persisted thread directly to a
-`MainSidebar.NavLink` with no action menu or delete callback. The prior
-`delete thread` action and confirmation dialog are therefore unavailable.
-See [mastra-ai/mastra#22763](https://github.com/mastra-ai/mastra/issues/22763).
-
-The delete-thread UI test remains as an explicit skip linked to #22763. Restore
-it when the standalone sidebar supports deleting a thread again.
+The standalone thread sidebar initially rendered persisted threads without a
+delete action. Upstream PR #22768 restored the permission-gated action and
+closed [mastra-ai/mastra#22763](https://github.com/mastra-ai/mastra/issues/22763).
+The fix is present in `mastra@1.27.3-alpha.10`, and the delete-thread UI test is
+enabled again.
