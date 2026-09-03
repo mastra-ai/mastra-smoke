@@ -222,35 +222,30 @@ test.describe('Datasets', () => {
     await expect(alertDialog).not.toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('to_delete')).not.toBeVisible({ timeout: 10_000 });
 
-    // The Items tab should now show 0
-    await expect(page.getByRole('tab', { name: /Items\s+0/ })).toBeVisible();
+    // The items-only detail page should show its empty state after deletion.
+    await expect(page.getByRole('heading', { name: 'No items yet', level: 3 })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add Single Item' })).toBeVisible();
 
     // Clean up
     await request.delete(`/api/datasets/${datasetId}`);
   });
 
-  test('experiments tab shows empty state', async ({ page, request }) => {
+  test('view experiments link opens the filtered global experiments page', async ({ page, request }) => {
     // Create dataset via API
     const createRes = await request.post('/api/datasets', {
-      data: { name: 'Experiments Tab Dataset', description: 'For tab test' },
+      data: { name: 'Experiments Link Dataset', description: 'For experiments navigation test' },
     });
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
 
     await page.goto(`/datasets/${datasetId}`);
-    await expectDatasetLoaded(page, 'Experiments Tab Dataset');
+    await expectDatasetLoaded(page, 'Experiments Link Dataset');
 
-    // Switch to Experiments tab
-    await page.getByRole('tab', { name: /Experiments/ }).click();
+    await page.getByRole('link', { name: 'View experiments' }).click();
 
-    // Should show empty state
-    await expect(page.getByRole('heading', { name: 'No experiments yet', level: 3 })).toBeVisible();
-    await expect(page.getByText('Trigger an experiment to evaluate')).toBeVisible();
-
-    // Should have filter comboboxes (labels are hidden, match by displayed text)
-    await expect(page.getByText('All statuses')).toBeVisible();
-    await expect(page.getByText('All types')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/experiments\\?dataset=${datasetId}$`));
+    await expect(page.getByRole('heading', { name: 'Experiments', level: 1 })).toBeVisible();
 
     // Clean up
     await request.delete(`/api/datasets/${datasetId}`);

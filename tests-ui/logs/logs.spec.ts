@@ -5,10 +5,22 @@ test.describe('Logs', () => {
     const errors: string[] = [];
     page.on('pageerror', err => errors.push(err.message));
 
-    // Trigger a workflow that throws on purpose so we know there is a log row to show.
+    // Trigger a workflow that throws on purpose, then wait until its asynchronous
+    // log write is queryable before loading the logs page.
     await request.post('/api/workflows/failure-workflow/start-async', {
       data: { inputData: { input: 'logs-ui-smoke' } },
     }).catch(() => {});
+    await expect
+      .poll(
+        async () => {
+          const response = await request.get('/api/logs?transportId=memory&page=1&perPage=100');
+          if (!response.ok()) return false;
+          const data = (await response.json()) as { logs: Array<{ msg: string; level: number }> };
+          return data.logs.some(({ msg, level }) => level === 50 && msg.includes('Intentional failure for smoke test'));
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
 
     await page.goto('/logs');
     await expect(page).toHaveURL(/\/logs/);
@@ -18,15 +30,10 @@ test.describe('Logs', () => {
     await expect(page.getByRole('button', { name: /last 24 hours/i }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /add filter/i }).first()).toBeVisible();
 
-    // Real content: at least one log row from the fixture (failure-workflow + the editor-not-configured
-    // probes both write logs). We assert the "error" severity badge is rendered for at least one row.
-    const errorBadge = page.getByText(/^error$/i).first();
-    await expect(errorBadge).toBeVisible({ timeout: 10_000 });
-
-    // And we should see at least one log row with concrete content from the fixture
-    // (e.g. an orchestrator error or a "no memory configured" warning from agent runs).
+    // We should see at least one real log row with concrete content from the fixture
+    // (e.g. a workflow error or a "no memory configured" warning from agent runs).
     const logRow = page.getByRole('button', { name: /ERROR|WARN/ }).first();
-    await expect(logRow).toBeVisible({ timeout: 10_000 });
+    await expect(logRow).toBeVisible({ timeout: 20_000 });
 
     expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
   });

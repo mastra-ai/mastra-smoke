@@ -33,9 +33,7 @@ test.describe('Memory & Threads', () => {
     await expect(threadLink).toBeVisible({ timeout: 10_000 });
   });
 
-  // Blocked by mastra-ai/mastra#22763: the standalone thread sidebar no longer
-  // renders a per-thread delete action.
-  test.skip('delete a thread', async ({ page }) => {
+  test('delete a thread', async ({ page }) => {
     test.slow();
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto('/agents/test-agent/threads/new');
@@ -85,9 +83,7 @@ test.describe('Memory & Threads', () => {
   test.describe('working memory [@llm]', () => {
     test.describe.configure({ retries: 3 });
 
-  // Blocked by mastra-ai/mastra#22762: the standalone thread redesign no longer
-  // renders the working-memory viewer/editor.
-  test.skip('working memory display', async ({ page }) => {
+  test('working memory display', async ({ page }) => {
     test.slow();
     await page.goto('/agents/test-agent/threads/new');
 
@@ -112,14 +108,15 @@ test.describe('Memory & Threads', () => {
     }
     await expect(editButton).toBeEnabled({ timeout: 10_000 });
 
-    // The working memory should contain the facts extracted from the message.
-    // The agent writes markdown with user info; verify both facts appear in the display.
-    const memoryPanel = page.locator('#left-slot');
-    await expect(memoryPanel).toContainText(/SmokeTestUser99/i, { timeout: 10_000 });
-    await expect(memoryPanel).toContainText(/San Francisco/i, { timeout: 10_000 });
+    // The working-memory display should contain the facts extracted from the message.
+    await expect(page.getByRole('heading', { name: 'User Information', level: 1 })).toBeVisible();
+    const firstName = page.getByRole('listitem').filter({ has: page.getByText('First Name', { exact: true }) });
+    const location = page.getByRole('listitem').filter({ has: page.getByText('Location', { exact: true }) });
+    await expect(firstName).toContainText('SmokeTestUser99', { timeout: 10_000 });
+    await expect(location).toContainText('San Francisco', { timeout: 10_000 });
   });
 
-  test.skip('working memory editing', async ({ page }) => {
+  test('working memory editing', async ({ page }) => {
     test.slow();
     await page.goto('/agents/test-agent/threads/new');
 
