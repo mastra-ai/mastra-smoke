@@ -99,7 +99,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 |   | Test                                                        | Status |
 |---|-------------------------------------------------------------|--------|
 | 1 | Model settings tab shows controls and persists chat method   | ✅     |
-| 2 | Persisted thread exposes its traces panel                    | ✅     |
+| 2 | Persisted thread toggles trace view with real spans and returns to chat                    | ✅     |
 | 3 | Network mode enabled only with sub-agents and memory         | ✅     |
 | 4 | Advanced settings expand and show fields                     | ✅     |
 | 5 | Thread navigation identifies and switches agents            | ✅     |
@@ -180,7 +180,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 |  8 | Delete dataset removes it from list              | ✅     |
 |  9 | JSON import: upload file and import items        | ✅     |
 | 10 | CSV import: upload file and reach mapping        | ✅     |
-| 11 | Trigger experiment with scorer and view results  | ✅     |
+| 11 | Require experiment name, run scorer target, and verify inline results  | ✅     |
 
 ### Scorers — `tests-ui/scorers/` (2/2)
 

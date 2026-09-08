@@ -435,8 +435,13 @@ test.describe('Datasets', () => {
     await dialog.getByRole('combobox').nth(3).click();
     await page.getByRole('option', { name: 'Completeness Scorer', exact: true }).first().click();
 
-    // Click Run
-    await dialog.getByRole('button', { name: 'Run' }).click();
+    const runButton = dialog.getByRole('button', { name: 'Run', exact: true });
+    await expect(runButton).toBeDisabled();
+    await expect(dialog.getByText('Missing name', { exact: true })).toBeVisible();
+    const experimentName = `Completeness experiment ${Date.now()}`;
+    await dialog.getByRole('textbox', { name: 'Name *', exact: true }).fill(experimentName);
+    await expect(runButton).toBeEnabled();
+    await runButton.click();
 
     // Experiment details now live at the top-level /experiments route.
     await page.waitForURL(/\/experiments\/[^/]+$/, { timeout: 15_000 });
@@ -448,8 +453,8 @@ test.describe('Datasets', () => {
     // Verify the target is shown as Completeness Scorer.
     await expect(page.getByRole('link', { name: 'Completeness Scorer' })).toBeVisible();
 
-    // Switch to Results tab and verify concrete result rows from our seeded items
-    await page.getByRole('tab', { name: 'Results' }).click();
+    // Results are displayed inline below the experiment summary.
+    await expect(page.getByRole('heading', { name: experimentName, exact: true })).toBeVisible();
     // Each result row renders the first 8 chars of the dataset item ID
     for (const itemId of itemIds) {
       await expect(page.getByText(itemId.slice(0, 8))).toBeVisible({ timeout: 10_000 });

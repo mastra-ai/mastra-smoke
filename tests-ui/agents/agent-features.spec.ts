@@ -44,16 +44,29 @@ test.describe('Agent Features', () => {
     await expect(page.getByRole('radio', { name: 'Generate' })).toBeChecked();
   });
 
-  test('persisted thread exposes its traces panel', async ({ page }) => {
+  test('persisted thread toggles its trace view', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
     await fillAndSend(page, 'Say hello and nothing else.');
     await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
     await waitForAssistantMessage(page);
 
-    // Traces are now scoped to a persisted standalone thread.
-    await page.getByRole('button', { name: 'Traces' }).click();
-    await expect(page.getByRole('heading', { name: 'Traces' })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: 'Close Panel' })).toBeVisible();
+    const showTraces = page.getByRole('switch', { name: 'Show traces' });
+    await expect(showTraces).not.toBeChecked();
+    await showTraces.click();
+    await expect(showTraces).toBeChecked();
+    await expect(page).toHaveURL(/\?variant=advanced$/);
+
+    const traceView = page.getByTestId('thread-view-by-trace');
+    await expect(traceView).toBeVisible({ timeout: 30_000 });
+    await expect(traceView.getByText('Say hello and nothing else.', { exact: true })).toBeVisible();
+    await expect(traceView.getByRole('button', { name: "agent run: 'test-agent'", exact: true })).toBeVisible();
+    await expect(traceView.getByRole('link', { name: 'Go to trace' })).toHaveAttribute('href', /\/traces\?traceId=.+/);
+
+    await showTraces.click();
+    await expect(showTraces).not.toBeChecked();
+    await expect(page).not.toHaveURL(/variant=advanced/);
+    await expect(traceView).not.toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
   });
 
   test('model settings: network mode enabled only with sub-agents and memory', async ({ page }) => {
