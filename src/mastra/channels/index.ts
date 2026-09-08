@@ -35,7 +35,7 @@ class StubChannelProvider implements ChannelProvider {
   }
 }
 
-export const smokeChannel = new StubChannelProvider('smoke-stub', 'Smoke Stub', [
+export const smokeChannel: ChannelProvider = new StubChannelProvider('smoke-stub', 'Smoke Stub', [
   {
     id: 'smoke-stub-install-1',
     platform: 'smoke-stub',

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, assert, beforeAll, afterAll } from 'vitest';
 import { MCPClient } from '@mastra/mcp';
+import { noopObserve } from '@mastra/core/tools';
 import { getBaseUrl } from '../utils.js';
 
 describe('MCP client transport', () => {
@@ -35,9 +36,9 @@ describe('MCP client transport', () => {
       const tools = await client.listTools();
       const calculator = tools['test-mcp_calculator'];
       expect(calculator, 'calculator tool not found').toBeDefined();
-      expect(calculator.execute, 'calculator tool has no execute method').toBeDefined();
+      assert(calculator.execute, 'calculator tool has no execute method');
 
-      const result = await calculator.execute({ operation: 'add', a: 10, b: 32 });
+      const result = await calculator.execute({ operation: 'add', a: 10, b: 32 }, { observe: noopObserve });
 
       // When the tool throws server-side, MCP wraps the failure in
       // { content: [...], isError: true }. Surface that content in the
@@ -49,9 +50,9 @@ describe('MCP client transport', () => {
       const tools = await client.listTools();
       const transform = tools['test-mcp_string-transform'];
       expect(transform, 'string-transform tool not found').toBeDefined();
-      expect(transform.execute, 'string-transform tool has no execute method').toBeDefined();
+      assert(transform.execute, 'string-transform tool has no execute method');
 
-      const result = await transform.execute({ text: 'hello world', transform: 'upper' });
+      const result = await transform.execute({ text: 'hello world', transform: 'upper' }, { observe: noopObserve });
 
       expect(result, `MCP returned error envelope: ${JSON.stringify(result)}`).toEqual({ result: 'HELLO WORLD' });
     });
@@ -88,9 +89,9 @@ describe('MCP client transport', () => {
       const tools = await client.listTools();
       const calculator = tools['test-mcp_calculator'];
       expect(calculator, 'calculator tool not found').toBeDefined();
-      expect(calculator.execute, 'calculator tool has no execute method').toBeDefined();
+      assert(calculator.execute, 'calculator tool has no execute method');
 
-      const result = await calculator.execute({ operation: 'subtract', a: 100, b: 58 });
+      const result = await calculator.execute({ operation: 'subtract', a: 100, b: 58 }, { observe: noopObserve });
 
       expect(result, `MCP returned error envelope: ${JSON.stringify(result)}`).toEqual({ result: 42 });
     });
@@ -99,9 +100,9 @@ describe('MCP client transport', () => {
       const tools = await client.listTools();
       const transform = tools['test-mcp_string-transform'];
       expect(transform, 'string-transform tool not found').toBeDefined();
-      expect(transform.execute, 'string-transform tool has no execute method').toBeDefined();
+      assert(transform.execute, 'string-transform tool has no execute method');
 
-      const result = await transform.execute({ text: 'mastra', transform: 'reverse' });
+      const result = await transform.execute({ text: 'mastra', transform: 'reverse' }, { observe: noopObserve });
 
       expect(result, `MCP returned error envelope: ${JSON.stringify(result)}`).toEqual({ result: 'artsam' });
     });
