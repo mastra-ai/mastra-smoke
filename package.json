@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:ui": "playwright test",
     "test:all": "vitest run && playwright test",
+    "test:reporter": "node --experimental-strip-types --test scripts/report-status.test.ts",
     "report:slack": "npx tsx scripts/slack-report.ts"
   },
   "dependencies": {
