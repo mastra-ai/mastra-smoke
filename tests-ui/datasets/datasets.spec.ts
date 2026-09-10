@@ -6,6 +6,22 @@ async function expectDatasetLoaded(page: Page, datasetName: string | RegExp) {
 }
 
 test.describe('Datasets', () => {
+  const createdDatasetIds = new Set<string>();
+  let pageErrors: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+  });
+
+  test.afterEach(async ({ request }) => {
+    for (const datasetId of createdDatasetIds) {
+      await request.delete(`/api/datasets/${datasetId}`);
+    }
+    createdDatasetIds.clear();
+    expect(pageErrors, 'unexpected browser errors').toEqual([]);
+  });
+
   test('datasets list page shows create button and heading', async ({ page }) => {
     await page.goto('/datasets');
 
@@ -29,8 +45,15 @@ test.describe('Datasets', () => {
     await page.getByRole('textbox', { name: 'Description' }).fill('Created by smoke tests');
 
     await expect(submitBtn).toBeEnabled();
+    const createdResponse = page.waitForResponse(response =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/datasets',
+    );
     await submitBtn.click();
-    await expect(page).toHaveURL(/\/datasets\/[^/]+$/, { timeout: 10_000 });
+    const response = await createdResponse;
+    expect(response.ok()).toBeTruthy();
+    const dataset: { id: string } = await response.json();
+    createdDatasetIds.add(dataset.id);
+    await expect(page).toHaveURL(`/datasets/${dataset.id}`, { timeout: 10_000 });
 
     // Reload the page to ensure the new dataset is visible in the list
     await page.goto('/datasets');
@@ -48,15 +71,16 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     // Navigate to dataset detail
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'Items Test Dataset');
 
     // Should show empty items tab initially — the single-item action should be present.
-    await expect(page.getByRole('button', { name: 'Add Single Item' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add Item', exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Add Single Item' }).click();
+    await page.getByRole('button', { name: 'Add Item', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Add Item' })).toBeVisible();
 
     // The dialog has textbox editors for Input and Ground Truth
@@ -93,8 +117,6 @@ test.describe('Datasets', () => {
     await expect(page.getByText('Input', { exact: true }).last()).toBeVisible();
     await expect(page.getByText('Ground Truth', { exact: true }).last()).toBeVisible();
 
-    // Clean up via API
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('edit dataset name and description', async ({ page, request }) => {
@@ -105,6 +127,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'Before Edit');
@@ -135,8 +158,6 @@ test.describe('Datasets', () => {
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'After Edit');
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('edit item input and verify update', async ({ page, request }) => {
@@ -147,6 +168,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     const itemRes = await request.post(`/api/datasets/${datasetId}/items`, {
       data: { input: { original: 'value' }, groundTruth: { expected: 'result' }, expectedTrajectory: {} },
@@ -183,8 +205,6 @@ test.describe('Datasets', () => {
     // The updated value appears in both the item list and the detail panel code editor
     await expect(page.getByText('updated-value').first()).toBeVisible({ timeout: 5_000 });
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('delete item from detail panel', async ({ page, request }) => {
@@ -195,6 +215,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     const itemRes = await request.post(`/api/datasets/${datasetId}/items`, {
       data: { input: { to_delete: 'this-item' }, groundTruth: { answer: '42' } },
@@ -224,10 +245,8 @@ test.describe('Datasets', () => {
 
     // The items-only detail page should show its empty state after deletion.
     await expect(page.getByRole('heading', { name: 'No items yet', level: 3 })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add Single Item' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add Item', exact: true })).toBeVisible();
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('view experiments link opens the filtered global experiments page', async ({ page, request }) => {
@@ -238,6 +257,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'Experiments Link Dataset');
@@ -247,8 +267,6 @@ test.describe('Datasets', () => {
     await expect(page).toHaveURL(new RegExp(`/experiments\\?dataset=${datasetId}$`));
     await expect(page.getByRole('heading', { name: 'Experiments', level: 1 })).toBeVisible();
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('delete dataset removes it from list', async ({ page, request }) => {
@@ -260,6 +278,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     // Navigate to dataset detail
     await page.goto(`/datasets/${datasetId}`);
@@ -281,6 +300,7 @@ test.describe('Datasets', () => {
     // The specific dataset link should be removed from the DOM entirely
     const datasetLink = page.locator(`a[href="/datasets/${datasetId}"]`);
     await expect(datasetLink).toHaveCount(0, { timeout: 10_000 });
+    createdDatasetIds.delete(datasetId);
   });
 
   test('JSON import: upload file and import items', async ({ page, request }) => {
@@ -291,6 +311,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'JSON Import Dataset');
@@ -298,11 +319,11 @@ test.describe('Datasets', () => {
     // On an empty dataset, Import JSON is a direct button in the empty state
     await page.getByRole('button', { name: 'Import JSON' }).click();
 
-    // The dialog title changes per step, so use a stable locator
-    const dialog = page.getByRole('dialog');
+    const dialog = page.getByRole('dialog', { name: 'Import into dataset' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('heading', { name: 'Import JSON' })).toBeVisible();
-    await expect(dialog.getByText('JSON files only')).toBeVisible();
+    await expect(dialog.getByRole('tab', { name: 'Upload file' })).toHaveAttribute('aria-selected', 'true');
+    await expect(dialog.getByRole('tab', { name: 'Paste JSON' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Import', exact: true })).toBeDisabled();
 
     // Upload a JSON file via the hidden file input
     const jsonContent = JSON.stringify([
@@ -317,30 +338,21 @@ test.describe('Datasets', () => {
       buffer: Buffer.from(jsonContent),
     });
 
-    // Should advance to preview step showing "Found 3 valid items to import."
-    await expect(dialog.getByRole('heading', { name: 'Preview Data' })).toBeVisible({ timeout: 5_000 });
-    await expect(dialog.getByText('Found 3 valid items to import.')).toBeVisible();
-    // Preview table should show our data
-    await expect(dialog.getByText('What is 1+1?')).toBeVisible();
+    await expect(dialog.getByRole('status')).toHaveText('3 items ready');
+    await expect(dialog.getByText('What is 1+1?', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('What is 2+2?', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('What is 3+3?', { exact: true })).toBeVisible();
 
-    // Click "Import 3 Items"
-    await dialog.getByRole('button', { name: /Import 3 Items/ }).click();
-
-    // Should show Import Complete
-    await expect(dialog.getByRole('heading', { name: 'Import Complete' })).toBeVisible({ timeout: 10_000 });
-    await expect(dialog.getByText('3 items imported')).toBeVisible();
-
-    // Click Done
-    await dialog.getByRole('button', { name: 'Done' }).click();
-    await expect(dialog).not.toBeVisible();
+    const importButton = dialog.getByRole('button', { name: 'Import 3 items', exact: true });
+    await expect(importButton).toBeEnabled();
+    await importButton.click();
+    await expect(dialog).not.toBeVisible({ timeout: 10_000 });
 
     // Verify items appear in the dataset list (the items tab should show our data)
     await expect(page.getByText('What is 1+1?')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('What is 2+2?')).toBeVisible();
     await expect(page.getByText('What is 3+3?')).toBeVisible();
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('CSV import: upload file and reach mapping step', async ({ page, request }) => {
@@ -351,6 +363,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'CSV Import Dataset');
@@ -391,8 +404,6 @@ test.describe('Datasets', () => {
     // Both columns should start in the Ignore zone
     await expect(dialog.getByText('Drag at least one column here')).toBeVisible();
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 
   test('trigger experiment with scorer and view results', async ({ page, request }) => {
@@ -404,6 +415,7 @@ test.describe('Datasets', () => {
     expect(createRes.ok()).toBeTruthy();
     const dataset = await createRes.json();
     const datasetId = dataset.id;
+    createdDatasetIds.add(datasetId);
 
     // Add items with input/output structure for completeness scorer
     const itemPayloads = [
@@ -453,8 +465,8 @@ test.describe('Datasets', () => {
     // Verify the target is shown as Completeness Scorer.
     await expect(page.getByRole('link', { name: 'Completeness Scorer' })).toBeVisible();
 
-    // Results are displayed inline below the experiment summary.
-    await expect(page.getByRole('heading', { name: experimentName, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Experiment', level: 1, exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(experimentName);
     // Each result row renders the first 8 chars of the dataset item ID
     for (const itemId of itemIds) {
       await expect(page.getByText(itemId.slice(0, 8))).toBeVisible({ timeout: 10_000 });
@@ -463,7 +475,5 @@ test.describe('Datasets', () => {
     await expect(page.getByText('What is AI?')).toBeVisible();
     await expect(page.getByText('What is ML?')).toBeVisible();
 
-    // Clean up
-    await request.delete(`/api/datasets/${datasetId}`);
   });
 });

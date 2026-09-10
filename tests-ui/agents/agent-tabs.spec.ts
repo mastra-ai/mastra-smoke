@@ -56,7 +56,7 @@ test.describe('Agent layout tabs', () => {
     await page.goto('/agents/test-agent/traces');
     await expect(page).toHaveURL(/\/agents\/test-agent\/traces/);
 
-    const tracesTab = page.getByRole('tab', { name: /^traces$/i }).first();
+    const tracesTab = page.getByRole('tab', { name: 'Agent traces', exact: true });
     await expect(tracesTab).toHaveAttribute('aria-selected', 'true');
 
     expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
