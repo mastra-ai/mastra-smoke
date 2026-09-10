@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
-import { existsSync } from 'node:fs';
+import getPort from 'get-port';
 
-const PORT = process.env.STUDIO_PORT || '4555';
+// Workers inherit the parent's selected port instead of choosing another one.
+const PORT = process.env.STUDIO_PORT || String(await getPort({ host: '127.0.0.1' }));
+process.env.STUDIO_PORT = PORT;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
@@ -37,13 +39,7 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    // Cleanup must happen inside the webServer command (before the server
-    // boots), not in globalSetup — Playwright starts the webServer before
-    // globalSetup, so deleting the DB there unlinks it under the live server.
-    command: `node tests-ui/pre-server.mjs && MASTRA_STUDIO_PATH=.mastra/output/studio PORT=${PORT} MASTRA_HOST=127.0.0.1 MASTRA_AUTO_DETECT_URL=true node ${existsSync('.env') ? '--env-file=.env' : ''} .mastra/output/index.mjs`,
-    url: `${BASE_URL}/api/workflows`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // Own a fresh server and private storage on every invocation; never reuse a
+  // process found on the port or delete files beneath a running server.
+  globalSetup: './tests-ui/server.ts',
 });

@@ -13,11 +13,10 @@ pnpm install --ignore-workspace
 
 ## Running
 
-You must build before running any tests:
+Build before running the API/UI suites or the built-server isolation check. Offline harness tests do not need a build:
 
 ```bash
-pnpm build              # API tests only
-pnpm build:studio       # API + UI tests (includes Studio assets)
+pnpm build              # Builds the server and Studio assets for both suites
 ```
 
 ### API tests (Vitest)
@@ -30,22 +29,63 @@ pnpm test
 ### UI tests (Playwright)
 
 ```bash
-pnpm build:studio
+pnpm build
 pnpm test:ui
 ```
 
 ### Both
 
 ```bash
-pnpm build:studio
+pnpm build
 pnpm test:all
+```
+
+### Server ownership and diagnostics
+
+Both runners use `scripts/smoke-server.ts` to launch the same built entrypoint. Each
+invocation gets an allocated loopback port and a fresh directory:
+
+```text
+reports/runtime/<api-or-ui>-<unique-id>/
+  run.json          # PID, entrypoint, effective paths, exit state, forced shutdown
+  server.log        # complete stdout/stderr
+  data/
+    test.db
+    mastra.duckdb
+    test-workspace/
+```
+
+The fixture's `/smoke/health` response must identify that exact run before tests
+start. Playwright never automatically reuses an existing server. Set `STUDIO_PORT`
+only when a particular UI port is needed; an occupied port fails instead of attaching
+to another process. Stop any manually running server on that port first.
+
+Shutdown sends SIGTERM, allows 15 seconds for HTTP draining and storage teardown,
+then escalates to SIGKILL if necessary. Teardown waits for process and log-stream
+closure; a crash or forced shutdown fails the run. Data and logs are retained on
+success and failure, not deleted during teardown. Remove an old run directory only
+after verifying its process has stopped. CI uploads these files with `reports/` and
+retains artifacts for 30 days. Abrupt SIGKILL of the runner cannot run cleanup hooks;
+private paths still prevent a later invocation from deleting its data.
+
+The top-level test reports and Playwright artifact directories keep their existing
+names: concurrent servers are isolated, but do not run two report-producing instances
+of the same suite into the same checkout's default report directories.
+
+```bash
+pnpm test:lifecycle    # Offline process lifecycle/failure tests; no build or LLM
+pnpm test:isolation    # Two real built servers; verifies independent stores/workspaces, no LLM
 ```
 
 ### Slack report (after tests)
 
 ```bash
-CI=1 pnpm build:studio && pnpm test:all   # generates reports/ + videos
-pnpm report:slack                           # posts combined results to Slack
+pnpm build && {
+  export API_TEST_OUTCOME=success UI_TEST_OUTCOME=success
+  CI=1 pnpm test || export API_TEST_OUTCOME=failure
+  CI=1 pnpm test:ui || export UI_TEST_OUTCOME=failure
+  pnpm report:slack
+}
 ```
 
 The report includes both API (Vitest) and UI (Playwright) results. The script loads `.env` automatically for local runs. Set `SLACK_CHANNEL_ID` to the channel you want results posted to (the bot must be a member).
@@ -60,10 +100,11 @@ The workflow at `.github/workflows/smoke.yml` runs on two triggers:
 Each run:
 
 1. Rewrites Mastra deps in `package.json` to the resolved tag, then `pnpm install --no-frozen-lockfile --ignore-workspace`
-2. Builds the project (`mastra build --studio`)
-3. Runs API tests (Vitest) and UI tests (Playwright) on both Zod 3 and Zod 4
-4. Posts combined results to a Slack channel (with failure videos and run links)
-5. Uploads test artifacts
+2. Runs offline reporting and process-lifecycle checks
+3. Builds the project (`mastra build --studio`) and verifies two concurrent built servers have independent stores/workspaces
+4. Runs API tests (Vitest) and UI tests (Playwright) on both Zod 3 and Zod 4
+5. Posts combined results to a Slack channel (with failure videos and run links)
+6. Uploads test artifacts, including per-run server diagnostics
 
 All GitHub-managed config is prefixed `SMOKE_*` so it groups together in repo **Settings → Secrets and variables → Actions**.
 
@@ -116,12 +157,16 @@ mastra-smoke/
 │   ├── COVERAGE.md           # Test inventory
 │   └── agents/workflows/...  # Test files by feature
 ├── tests-ui/                 # UI tests (Playwright)
-│   ├── global-setup.ts       # Clean state before run
+│   ├── server.ts             # Shared server lifecycle adapter
+│   ├── global.setup.ts       # Pause autonomous schedule after server readiness
 │   ├── helpers.ts            # Shared Playwright helpers
 │   ├── COVERAGE.md           # Test inventory
 │   └── agents/workflows/...  # Test spec files
-├── reports/                  # JSON test results (gitignored)
+├── reports/                  # Test reports + runtime diagnostics (gitignored)
 └── scripts/
+    ├── smoke-server.ts       # Shared run ownership and process lifecycle
+    ├── smoke-server.test.ts  # Offline lifecycle regression tests
+    ├── smoke-isolation.test.ts # Built-runtime isolation check
     └── slack-report.ts       # Slack channel/DM reporter (API + UI)
 ```
 

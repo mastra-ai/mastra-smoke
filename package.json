@@ -11,6 +11,8 @@
     "test:ui": "playwright test",
     "test:all": "vitest run && playwright test",
     "test:reporter": "node --experimental-strip-types --test scripts/report-status.test.ts",
+    "test:lifecycle": "node --experimental-strip-types --test --test-timeout=15000 scripts/smoke-server.test.ts",
+    "test:isolation": "node --experimental-strip-types --test scripts/smoke-isolation.test.ts",
     "report:slack": "npx tsx scripts/slack-report.ts"
   },
   "dependencies": {

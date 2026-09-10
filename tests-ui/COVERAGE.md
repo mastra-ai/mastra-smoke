@@ -229,7 +229,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
-| 1 | Settings page displays configuration form   | ✅     |
+| 1 | Settings form uses the current server origin (including its allocated port) | ✅     |
 | 2 | Custom header sent in API requests after save | ✅     |
 
 ---
@@ -242,5 +242,6 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 ## Notes
 
 - Agent chat tests require `OPENAI_API_KEY` in `.env` for real LLM calls.
-- Workflows run against the local LibSQL database, cleaned on each test run via `global-setup.ts`.
-- All tests run sequentially (`workers: 1`) to avoid port/state conflicts.
+- Each invocation starts an owned server with private LibSQL, DuckDB, and workspace paths; see `scripts/smoke-server.ts` and `tests-ui/server.ts`.
+- Server logs, runtime manifests, and data are retained under `reports/runtime/`; no shared database files are deleted.
+- Tests within an invocation still run sequentially (`workers: 1`).

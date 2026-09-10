@@ -1,3 +1,6 @@
+import { basename, isAbsolute, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { registerApiRoute } from '@mastra/core/server';
 import { Mastra } from '@mastra/core/mastra';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { Workspace, LocalFilesystem } from '@mastra/core/workspace';
@@ -44,10 +47,17 @@ import { uppercaseProcessor, suffixProcessor, tripwireProcessor } from './proces
 import { completenessScorer, lengthScorer } from './scorers/index.js';
 import { smokeChannel } from './channels/index.js';
 
+// Harness runs supply an absolute, private root. Manual dev keeps its local defaults.
+const runDir = process.env.SMOKE_RUN_DIR;
+if (runDir && !isAbsolute(runDir)) throw new Error('SMOKE_RUN_DIR must be absolute');
+const workspacePath = runDir ? join(runDir, 'data', 'test-workspace') : './test-workspace';
+const libsqlUrl = runDir ? pathToFileURL(join(runDir, 'data', 'test.db')).href : 'file:test.db';
+const duckdbPath = runDir ? join(runDir, 'data', 'mastra.duckdb') : 'mastra.duckdb';
+
 const testWorkspace = new Workspace({
   id: 'test-workspace',
   name: 'Test Workspace',
-  filesystem: new LocalFilesystem({ basePath: './test-workspace' }),
+  filesystem: new LocalFilesystem({ basePath: workspacePath }),
   skills: ['skills'],
 });
 
@@ -57,9 +67,16 @@ try {
   await testWorkspace.init();
 } catch (err) {
   console.error('[workspace] Failed to initialize:', err);
+  if (runDir) throw err;
 }
 
 export const mastra = new Mastra({
+  server: {
+    apiRoutes: [registerApiRoute('/smoke/health', {
+      method: 'GET',
+      handler: c => c.json({ runId: runDir ? basename(runDir) : null, runDir: runDir ?? null }),
+    })],
+  },
   logger: smokeLogger,
   workspace: testWorkspace,
   agents: {
@@ -142,10 +159,10 @@ export const mastra = new Mastra({
     id: 'composite-storage',
     default: new LibSQLStore({
       id: 'smoke-test',
-      url: 'file:test.db',
+      url: libsqlUrl,
     }),
     domains: {
-      observability: await new DuckDBStore().getStore('observability'),
+      observability: await new DuckDBStore({ path: duckdbPath }).getStore('observability'),
     },
   }),
   observability: new Observability({
