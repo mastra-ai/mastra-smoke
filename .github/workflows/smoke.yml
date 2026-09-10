@@ -204,12 +204,15 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Test reporting logic (offline)
-        run: pnpm test:reporter
+      - name: Test reporting and lifecycle logic (offline)
+        run: pnpm test:reporter && pnpm test:lifecycle
 
       # ── Build ───────────────────────────────────────────────────────────
       - name: Build project
         run: pnpm build
+
+      - name: Verify built server isolation (no LLM calls)
+        run: pnpm test:isolation
 
       # ── Playwright browsers ────────────────────────────────────────────
       - name: Install Playwright browsers

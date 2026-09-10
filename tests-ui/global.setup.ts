@@ -7,16 +7,13 @@ import { test as setup, expect } from '@playwright/test';
  * 25+ minutes would clobber the workflow snapshot table and starve every
  * agent-chat / workflow test.
  *
- * This runs after the Playwright webServer is up (Playwright awaits the
- * webServer's `url` health check before running setup projects).
+ * This setup project runs after the shared launcher has verified readiness.
  */
-const PORT = process.env.STUDIO_PORT || '4555';
-const BASE_URL = `http://127.0.0.1:${PORT}`;
-
-setup('pause scheduled-tick', async () => {
+setup('pause scheduled-tick', async ({ baseURL }) => {
+  const BASE_URL = baseURL;
   // Generous deadline: on slow CI disks the schedules table can take a while
-  // to migrate after the webServer's health check passes (the health endpoint
-  // doesn't gate on storage init). 60s window with 500ms polls handles it.
+  // to migrate after server readiness (the health endpoint verifies run
+  // identity, not schedule registration). 60s window with 500ms polls handles it.
   const deadline = Date.now() + 60_000;
   let tickId: string | undefined;
   let lastErr: unknown;

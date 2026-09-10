@@ -10,8 +10,7 @@ test.describe('Settings', () => {
     // Mastra instance URL field is pre-filled with the running server URL
     const urlInput = page.getByPlaceholder('e.g: http://localhost:4111');
     await expect(urlInput).toBeVisible();
-    const urlValue = await urlInput.inputValue();
-    expect(urlValue).toContain('4555');
+    await expect(urlInput).toHaveValue(new URL(page.url()).origin);
 
     // API prefix field
     const prefixInput = page.getByPlaceholder('e.g: /api (default)');
