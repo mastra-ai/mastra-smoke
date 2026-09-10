@@ -204,6 +204,9 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Test reporting logic (offline)
+        run: pnpm test:reporter
+
       # ── Build ───────────────────────────────────────────────────────────
       - name: Build project
         run: pnpm build
@@ -248,11 +251,14 @@ jobs:
 
       # ── Report to Slack ────────────────────────────────────────────────
       - name: Report to Slack
+        id: report
         if: always()
         run: pnpm report:slack
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SMOKE_SLACK_BOT_TOKEN }}
           SLACK_CHANNEL_ID: ${{ vars.SMOKE_SLACK_CHANNEL_ID }}
+          API_TEST_OUTCOME: ${{ steps.api-tests.outcome }}
+          UI_TEST_OUTCOME: ${{ steps.ui-tests.outcome }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PUBLISH_RUN_URL: ${{ needs.resolve.outputs.publish_run_url }}
           SMOKE_TRIGGER: ${{ needs.resolve.outputs.trigger }}
@@ -278,10 +284,12 @@ jobs:
       # ── Fail the job if any test step failed ───────────────────────────
       # The API and UI steps use continue-on-error so Slack reporting + artifact
       # upload still run on red. This step turns those captured outcomes into a
-      # real job failure so the run status reflects test results.
-      - name: Fail if tests failed
-        if: always() && (steps.api-tests.outcome == 'failure' || steps.ui-tests.outcome == 'failure')
+      # real job failure so the run status reflects test results. Also require
+      # complete, valid reports: a zero runner exit alone is not proof of success.
+      - name: Fail if test execution was unsuccessful
+        if: always() && (steps.api-tests.outcome == 'failure' || steps.ui-tests.outcome == 'failure' || steps.report.outputs.test_status != 'success')
         run: |
           echo "API tests outcome: ${{ steps.api-tests.outcome }}"
           echo "UI tests outcome:  ${{ steps.ui-tests.outcome }}"
+          echo "Verified report status: ${{ steps.report.outputs.test_status || 'unavailable' }}"
           exit 1

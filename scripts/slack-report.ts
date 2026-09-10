@@ -14,6 +14,9 @@
  *   REPORT_PATH      – path to Playwright JSON report (default: reports/ui-results.json)
  *   API_REPORT_PATH  – path to Vitest JSON report (default: reports/api-results.json)
  *   VIDEO_DIR        – path to Playwright test-results dir (default: test-results)
+ *   API_TEST_OUTCOME / UI_TEST_OUTCOME – runner step outcomes (success, failure,
+ *     skipped, cancelled). Required to verify success, including local reporting.
+ *     Missing outcomes are reported as unverified, never green.
  *   ZOD_VERSION      – resolved zod version (e.g. 3.25.76 or 4.3.6)
  *   MASTRA_VERSIONS  – comma-separated list of Mastra package versions
  *   WORKFLOW_RUN_URL – link to the GitHub Actions run
@@ -30,8 +33,10 @@
  *                      context block so the agent knows which artifact to pull.
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { appendFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { classifySuite, formatSuiteStatus, suitePassed, validateStats } from './report-status.ts';
+import type { SuiteStats } from './report-status.ts';
 
 // Load .env if present (local dev); in CI, env vars come from secrets.
 const envPath = join(import.meta.dirname, '..', '.env');
@@ -71,6 +76,7 @@ interface PlaywrightSuite {
 }
 
 interface PlaywrightReport {
+  errors?: Array<{ message?: string }>;
   config: { rootDir: string };
   suites: PlaywrightSuite[];
   stats: {
@@ -100,6 +106,9 @@ interface VitestTestResult {
 }
 
 interface VitestReport {
+  success: boolean;
+  numFailedTestSuites: number;
+  numRuntimeErrorTestSuites?: number;
   numTotalTests: number;
   numPassedTests: number;
   numFailedTests: number;
@@ -372,69 +381,123 @@ function collectVitestFailures(report: VitestReport): FailedTest[] {
 
 // ── Main ───────────────────────────────────────────────────────────
 
+function readReport<T>(path: string, outcome: string | undefined, parse: (value: unknown) => T): { report?: T; error?: string } {
+  // A skipped/cancelled step may leave an old report during local replay.
+  if (outcome === 'skipped' || outcome === 'cancelled') return {};
+  if (!existsSync(path)) return { error: `Report missing: ${path}` };
+  try {
+    return { report: parse(JSON.parse(readFileSync(path, 'utf8'))) };
+  } catch (error) {
+    return { error: `Invalid report ${path}: ${extractFailureSummary(error instanceof Error ? error.message : String(error)).slice(0, 400)}` };
+  }
+}
+
+function countPlaywrightTests(suites: PlaywrightSuite[]): number {
+  return suites.reduce((total, suite) => total +
+    suite.specs.reduce((count, spec) => count + spec.tests.length, 0) +
+    countPlaywrightTests(suite.suites ?? []), 0);
+}
+
+function hasInterruptedTests(suites: PlaywrightSuite[]): boolean {
+  return suites.some(suite =>
+    suite.specs.some(spec => spec.tests.some(test => test.results.some(result => result.status === 'interrupted'))) ||
+    hasInterruptedTests(suite.suites ?? []),
+  );
+}
+
 async function main() {
-  // Read API report (Vitest)
-  let apiStats = { passed: 0, failed: 0, skipped: 0, total: 0 };
-  let apiFailures: FailedTest[] = [];
-  let apiStartTime: number | null = null;
-  let apiDurationMs: number | null = null;
-
-  if (existsSync(API_REPORT_PATH)) {
-    const apiReport: VitestReport = JSON.parse(readFileSync(API_REPORT_PATH, 'utf-8'));
-    apiStats = {
-      passed: apiReport.numPassedTests,
-      failed: apiReport.numFailedTests,
-      skipped: apiReport.numPendingTests + apiReport.numTodoTests,
-      total: apiReport.numTotalTests,
+  const api = readReport(API_REPORT_PATH, process.env.API_TEST_OUTCOME, value => {
+    const report = value as VitestReport;
+    const stats: SuiteStats = {
+      passed: report.numPassedTests,
+      failed: report.numFailedTests,
+      skipped: report.numPendingTests + report.numTodoTests,
+      flaky: 0,
+      total: report.numTotalTests,
     };
-    apiStartTime = apiReport.startTime;
-    if (apiReport.testResults.length > 0) {
-      const maxEndTime = Math.max(...apiReport.testResults.map(t => t.endTime));
-      apiDurationMs = maxEndTime - apiReport.startTime;
+    validateStats(stats);
+    if (typeof report.success !== 'boolean' || !Number.isFinite(report.startTime) ||
+      !Number.isInteger(report.numFailedTestSuites) || report.numFailedTestSuites < 0) {
+      throw new Error('Missing or invalid execution metadata');
     }
-    apiFailures = collectVitestFailures(apiReport);
-    console.log(`API report: ${apiStats.passed}/${apiStats.total} passed, ${apiStats.failed} failed`);
-  } else {
-    console.warn(`API report not found: ${API_REPORT_PATH}`);
-  }
-
-  // Read UI report (Playwright)
-  let uiStats = { passed: 0, failed: 0, skipped: 0, flaky: 0, total: 0 };
-  let uiFailures: FailedTest[] = [];
-  let uiFlakes: FlakyTest[] = [];
-  let uiStartTime: string | null = null;
-  let uiDurationMs: number | null = null;
-
-  if (existsSync(REPORT_PATH)) {
-    const uiReport: PlaywrightReport = JSON.parse(readFileSync(REPORT_PATH, 'utf-8'));
-    uiStats = {
-      passed: uiReport.stats.expected,
-      failed: uiReport.stats.unexpected,
-      skipped: uiReport.stats.skipped,
-      flaky: uiReport.stats.flaky,
-      total: uiReport.stats.expected + uiReport.stats.unexpected + uiReport.stats.flaky + uiReport.stats.skipped,
+    const failures = collectVitestFailures(report);
+    if (report.testResults.reduce((count, test) => count + test.assertionResults.length, 0) !== stats.total) {
+      throw new Error('Report test inventory does not match its total');
+    }
+    const endTime = Math.max(report.startTime, ...report.testResults.map(test => test.endTime));
+    const runnerError = !report.success || report.numFailedTestSuites > 0 || (report.numRuntimeErrorTestSuites ?? 0) > 0 ||
+      failures.length > 0 || report.testResults.some(test => test.status === 'failed')
+      ? 'Vitest reports unsuccessful execution or suite errors'
+      : undefined;
+    return { stats, failures, startTime: report.startTime,
+      duration: Number.isFinite(endTime) ? endTime - report.startTime : undefined, runnerError };
+  });
+  const ui = readReport(REPORT_PATH, process.env.UI_TEST_OUTCOME, value => {
+    const report = value as PlaywrightReport;
+    const stats: SuiteStats = {
+      passed: report.stats.expected,
+      failed: report.stats.unexpected,
+      skipped: report.stats.skipped,
+      flaky: report.stats.flaky,
+      total: report.stats.expected + report.stats.unexpected + report.stats.flaky + report.stats.skipped,
     };
-    uiStartTime = uiReport.stats.startTime;
-    uiDurationMs = uiReport.stats.duration;
-    uiFailures = collectPlaywrightFailures(uiReport.suites);
-    uiFlakes = collectPlaywrightFlakes(uiReport.suites);
-    console.log(`UI report: ${uiStats.passed}/${uiStats.total} passed, ${uiStats.failed} failed, ${uiFlakes.length} flaky`);
-  } else {
-    console.warn(`UI report not found: ${REPORT_PATH}`);
-  }
-
-  if (!existsSync(API_REPORT_PATH) && !existsSync(REPORT_PATH)) {
-    console.error('No test reports found. Nothing to report.');
-    process.exit(1);
-  }
+    validateStats(stats);
+    if (!Number.isFinite(Date.parse(report.stats.startTime)) || !Number.isFinite(report.stats.duration)) {
+      throw new Error('Missing execution metadata');
+    }
+    const failures = collectPlaywrightFailures(report.suites);
+    if (countPlaywrightTests(report.suites) !== stats.total) {
+      throw new Error('Report test inventory does not match its total');
+    }
+    const flakes = collectPlaywrightFlakes(report.suites);
+    const runnerError = report.errors?.length
+      ? `Playwright runner error: ${extractFailureSummary(report.errors[0].message || 'Unknown error').slice(0, 400)}`
+      : hasInterruptedTests(report.suites) ? 'Playwright reports interrupted tests'
+      : failures.length > stats.failed || flakes.length > stats.flaky ? 'Playwright results conflict with summary counts'
+      : undefined;
+    return { stats, failures, flakes, startTime: report.stats.startTime, duration: report.stats.duration, runnerError };
+  });
+  const apiStatus = classifySuite(process.env.API_TEST_OUTCOME, api.report?.stats, api.error, api.report?.runnerError);
+  const uiStatus = classifySuite(process.env.UI_TEST_OUTCOME, ui.report?.stats, ui.error, ui.report?.runnerError);
+  const emptyStats: SuiteStats = { passed: 0, failed: 0, skipped: 0, flaky: 0, total: 0 };
+  const apiStats = api.report?.stats ?? emptyStats;
+  const uiStats = ui.report?.stats ?? emptyStats;
+  const apiFailures = api.report?.failures ?? [];
+  const uiFailures = ui.report?.failures ?? [];
+  const uiFlakes = ui.report?.flakes ?? [];
+  const apiStartTime = api.report?.startTime;
+  const uiStartTime = ui.report?.startTime;
+  const apiDurationMs = api.report?.duration;
+  const uiDurationMs = ui.report?.duration;
 
   const channelId = SLACK_CHANNEL_ID;
 
   // Build summary
-  const allFailures = [...apiFailures, ...uiFailures];
+  const executionFailures: FailedTest[] = [];
+  for (const [source, status, path, failures] of [
+    ['API', apiStatus, API_REPORT_PATH, apiFailures],
+    ['UI', uiStatus, REPORT_PATH, uiFailures],
+  ] as const) {
+    if (!suitePassed(status) && (status.status !== 'failed' || failures.length === 0)) {
+      executionFailures.push({
+        source,
+        title: `${source} execution: ${status.status}`,
+        file: path,
+        error: status.reason || 'Report records failed tests without individual failure details',
+        videoPath: null,
+      });
+    }
+  }
+  const allFailures = [...executionFailures, ...apiFailures, ...uiFailures];
   const totalFailed = apiStats.failed + uiStats.failed;
-  const isGreen = totalFailed === 0;
-  const emoji = isGreen ? '✅' : '🔴';
+  const isGreen = suitePassed(apiStatus) && suitePassed(uiStatus);
+  // Publish execution status before notification delivery; Slack failure must
+  // not change the recorded test outcome.
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `test_status=${isGreen ? 'success' : 'failure'}\n`);
+  }
+  const hasFlakes = uiStats.flaky > 0;
+  const emoji = isGreen ? (hasFlakes ? '⚠️' : '✅') : '🔴';
 
   // Use the earliest available start time for the timestamp
   const startMs = apiStartTime ?? (uiStartTime ? new Date(uiStartTime).getTime() : Date.now());
@@ -443,17 +506,9 @@ async function main() {
 
   // Per-suite status lines
   const apiDuration = apiDurationMs != null ? ` in ${formatDuration(apiDurationMs)}` : '';
-  const apiLine = apiStats.total > 0
-    ? (apiStats.failed > 0
-      ? `API: ${apiStats.failed} failed, ${apiStats.passed} passed${apiDuration}`
-      : `API: ${apiStats.passed}/${apiStats.total} passed${apiDuration}`)
-    : null;
+  const apiLine = formatSuiteStatus('API', apiStatus, api.report?.stats) + apiDuration;
   const uiDuration = uiDurationMs != null ? ` in ${formatDuration(uiDurationMs)}` : '';
-  const uiLine = uiStats.total > 0
-    ? (uiStats.failed > 0
-      ? `UI: ${uiStats.failed} failed, ${uiStats.passed} passed${uiDuration}`
-      : `UI: ${uiStats.passed}/${uiStats.total} passed${uiDuration}`)
-    : null;
+  const uiLine = formatSuiteStatus('UI', uiStatus, ui.report?.stats) + uiDuration;
 
   const zodVersion = process.env.ZOD_VERSION;
   const npmTag = process.env.NPM_TAG;
@@ -463,8 +518,8 @@ async function main() {
   const labelSuffix = tagZodLabel ? ` (${tagZodLabel})` : '';
 
   const headline = isGreen
-    ? `${emoji} *Smoke Tests${labelSuffix}* — all green`
-    : `${emoji} *Smoke Tests${labelSuffix}* — ${totalFailed} failed`;
+    ? `${emoji} *Smoke Tests${labelSuffix}* — ${hasFlakes ? 'passed with retries' : 'all green'}`
+    : `${emoji} *Smoke Tests${labelSuffix}* — ${totalFailed > 0 ? `${totalFailed} tests failed` : 'execution incomplete or unsuccessful'}${executionFailures.length && totalFailed > 0 ? '; execution issues' : ''}`;
 
   const statusLines = [apiLine, uiLine].filter(Boolean).join('  ·  ');
 
@@ -476,10 +531,9 @@ async function main() {
   const totalSkipped = apiStats.skipped + uiStats.skipped;
   if (totalSkipped > 0) contextParts.push(`${totalSkipped} skipped`);
   if (uiStats.flaky > 0) contextParts.push(`⚠️ ${uiStats.flaky} flaky`);
-  // Coverage line — sum of tests we actually executed (passed + failed +
-  // skipped + flaky retries are excluded from totals on purpose).
-  const apiTotal = apiStats.passed + apiStats.failed + apiStats.skipped;
-  const uiTotal = uiStats.passed + uiStats.failed + uiStats.skipped;
+  // Count distinct reported tests, including passed-on-retry and skipped tests.
+  const apiTotal = apiStats.total;
+  const uiTotal = uiStats.total;
   if (apiTotal + uiTotal > 0) {
     contextParts.push(`coverage: ${apiTotal} API · ${uiTotal} UI`);
   }
