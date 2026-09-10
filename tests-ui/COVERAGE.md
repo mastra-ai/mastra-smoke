@@ -1,6 +1,6 @@
 # Playwright UI Smoke Test Coverage
 
-Tracking document for Studio/Playground E2E smoke tests.
+Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-10.
 
 **Test runner:** Playwright (chromium, headless)
 **Test dir:** `tests-ui/`
@@ -15,13 +15,13 @@ Tracking document for Studio/Playground E2E smoke tests.
 | Section                | Done | Todo | Blocked | Notes |
 |------------------------|------|------|---------|-------|
 | Agents                 | 20   | 0    | 0       |       |
-| Agent layout tabs      | 4    | 0    | 0       | NEW — Editor disabled, Evaluate/Review/Traces tabs assert `aria-selected=true` on their route |
+| Agent layout tabs      | 4    | 0    | 0       | Editor disabled, Evaluate/Review/Agent traces tabs assert `aria-selected=true` on their route |
 | Tools                  | 7    | 0    | 1       |       |
 | Workflows              | 12   | 0    | 0       |       |
 | MCP Servers            | 3    | 0    | 0       |       |
 | Observability          | 6    | 0    | 0       |       |
 | Observability Overview | 1    | 0    | 0       | NEW — `/observability-overview` hub: heading + Metrics/Traces link cards |
-| Evaluation Dashboard   | 1    | 0    | 0       | NEW — `/evaluation` heading + Experiments/Review-Pipeline section |
+| Evaluation Dashboard   | 1    | 0    | 0       | `/evaluation` Overview heading + Scores, Dataset Coverage by Target, Experiments by Dataset, and Review Pipeline sections |
 | Memory                 | 4    | 0    | 0       |       |
 | Datasets               | 11   | 0    | 0       |       |
 | Scorers                | 2    | 0    | 0       |       |
@@ -82,15 +82,15 @@ Tracking document for Studio/Playground E2E smoke tests.
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
-| 1 | Agent overview shows metadata and new-thread link | ✅     |
+| 1 | Agent overview shows metadata and Chat tab opens a new thread | ✅     |
 | 2 | Send message and receive streamed response  | ✅     |
 | 3 | Send message with generate mode             | ✅     |
 | 4 | Model settings persist after reload         | ✅     |
 | 5 | New chat button navigates to fresh thread   | ✅     |
-| 6 | Thread sidebar lists previous conversations | ✅     |
+| 6 | Threads navigation lists the exact newly created conversation | ✅     |
 | 7 | Click previous thread to reload it          | ✅     |
 | 8 | Tool call displayed in chat message         | ✅     |
-| 9 | New thread links back to agent overview     | ✅     |
+| 9 | New thread navigates back via the Overview tab     | ✅     |
 | 10 | Approval agent triggers tool approval flow | ✅     |
 | 11 | Agent overview shows correct tools list    | ✅     |
 
@@ -99,7 +99,7 @@ Tracking document for Studio/Playground E2E smoke tests.
 |   | Test                                                        | Status |
 |---|-------------------------------------------------------------|--------|
 | 1 | Model settings tab shows controls and persists chat method   | ✅     |
-| 2 | Persisted thread toggles trace view with real spans and returns to chat                    | ✅     |
+| 2 | Show thread traces switch exposes real spans and returns to chat                    | ✅     |
 | 3 | Network mode enabled only with sub-agents and memory         | ✅     |
 | 4 | Advanced settings expand and show fields                     | ✅     |
 | 5 | Thread navigation identifies and switches agents            | ✅     |
@@ -178,9 +178,9 @@ Tracking document for Studio/Playground E2E smoke tests.
 |  6 | Delete item from detail panel                    | ✅     |
 |  7 | View experiments opens filtered global list     | ✅     |
 |  8 | Delete dataset removes it from list              | ✅     |
-|  9 | JSON import: upload file and import items        | ✅     |
+|  9 | JSON import: upload file, validate inline preview, and persist items        | ✅     |
 | 10 | CSV import: upload file and reach mapping        | ✅     |
-| 11 | Require experiment name, run scorer target, and verify inline results  | ✅     |
+| 11 | Require experiment name, run scorer target, and verify breadcrumb identity, item count, and seeded result rows  | ✅     |
 
 ### Scorers — `tests-ui/scorers/` (2/2)
 

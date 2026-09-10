@@ -1,13 +1,22 @@
 import { test, expect, Page } from '@playwright/test';
 import { fillAndSend, waitForAssistantMessage } from '../helpers';
 
-/** Wait for the standalone thread sidebar to load. */
+/** Wait for the agent's thread navigation to load. */
 async function waitForThreadSidebar(page: Page) {
   await expect(page.getByRole('link', { name: 'New Chat' })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('navigation', { name: 'Threads', exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Memory & Threads', () => {
+  let pageErrors: string[] = [];
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+  });
+  test.afterEach(() => {
+    expect(pageErrors, 'unexpected browser errors').toEqual([]);
+  });
+
   test('thread list shows threads after chat', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto('/agents/test-agent/threads/new');
@@ -26,7 +35,7 @@ test.describe('Memory & Threads', () => {
 
     // Expand the thread sidebar
     await waitForThreadSidebar(page);
-    const leftPanel = page.getByRole('navigation', { name: 'Main' });
+    const leftPanel = page.getByRole('navigation', { name: 'Threads', exact: true });
 
     // Verify the specific thread we created appears in the sidebar
     const threadLink = leftPanel.locator(`a[href="${threadPath}"]`);
@@ -48,7 +57,7 @@ test.describe('Memory & Threads', () => {
 
     // Expand the thread sidebar
     await waitForThreadSidebar(page);
-    const leftPanel = page.getByRole('navigation', { name: 'Main' });
+    const leftPanel = page.getByRole('navigation', { name: 'Threads', exact: true });
 
     // Find the specific thread entry we just created
     const threadLink = leftPanel.locator(`a[href="${threadPath}"]`);
@@ -59,7 +68,7 @@ test.describe('Memory & Threads', () => {
     const threadRow = leftPanel.locator('li').filter({ has: page.locator(`a[href="${threadPath}"]`) });
     // Hover the row to reveal the delete button (it's hidden until hover)
     await threadRow.hover();
-    const deleteButton = threadRow.getByLabel('delete thread');
+    const deleteButton = threadRow.getByRole('button', { name: 'delete thread', exact: true });
     await deleteButton.click();
 
     // Confirmation dialog should appear

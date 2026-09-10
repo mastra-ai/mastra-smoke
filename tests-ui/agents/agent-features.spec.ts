@@ -12,6 +12,15 @@ async function openModelSettings(page: Page) {
 }
 
 test.describe('Agent Features', () => {
+  let pageErrors: string[] = [];
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+  });
+  test.afterEach(() => {
+    expect(pageErrors, 'unexpected browser errors').toEqual([]);
+  });
+
   test('model settings tab shows controls and persists chat method', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
 
@@ -50,7 +59,7 @@ test.describe('Agent Features', () => {
     await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
     await waitForAssistantMessage(page);
 
-    const showTraces = page.getByRole('switch', { name: 'Show traces' });
+    const showTraces = page.getByRole('switch', { name: 'Show thread traces', exact: true });
     await expect(showTraces).not.toBeChecked();
     await showTraces.click();
     await expect(showTraces).toBeChecked();
@@ -59,8 +68,15 @@ test.describe('Agent Features', () => {
     const traceView = page.getByTestId('thread-view-by-trace');
     await expect(traceView).toBeVisible({ timeout: 30_000 });
     await expect(traceView.getByText('Say hello and nothing else.', { exact: true })).toBeVisible();
-    await expect(traceView.getByRole('button', { name: "agent run: 'test-agent'", exact: true })).toBeVisible();
-    await expect(traceView.getByRole('link', { name: 'Go to trace' })).toHaveAttribute('href', /\/traces\?traceId=.+/);
+    const agentSpan = traceView.getByRole('button', { name: "agent run: 'test-agent'", exact: true });
+    await expect(agentSpan).toBeVisible();
+    await agentSpan.click();
+    await expect(page.getByRole('heading', { name: /^Span #/, level: 3 })).toBeVisible();
+    const threadId = new URL(page.url()).pathname.split('/')[4];
+    await expect(page.getByRole('textbox').filter({ hasText: '"threadId"' })).toContainText(threadId);
+    await expect(page.getByRole('textbox').filter({ hasText: '"contents"' })).toContainText('Say hello and nothing else.');
+    await page.getByRole('button', { name: 'Close Panel', exact: true }).click();
+    await expect(page.getByRole('heading', { name: /^Span #/, level: 3 })).not.toBeVisible();
 
     await showTraces.click();
     await expect(showTraces).not.toBeChecked();
@@ -103,17 +119,16 @@ test.describe('Agent Features', () => {
 
   test('thread navigation reflects the active agent and supports switching agents', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
-    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Test Agent');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Test Agent');
 
     // Switch agents through the supported agents-list navigation path.
     await page.goto('/agents');
     await page.getByRole('link', { name: /^Helper Agent\b/ }).click();
-    await expect(page).toHaveURL(/\/agents\/helper-agent\/overview/);
-
-    // Start a helper-agent thread and verify the standalone thread identifies it.
-    await page.getByTestId('agent-view-header-new-chat').click();
+    // Agent list links now open Chat directly.
     await expect(page).toHaveURL('/agents/helper-agent/threads/new');
-    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Helper Agent');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Helper Agent');
   });
 
   test('network-agent overview shows sub-agents section', async ({ page }) => {
@@ -190,7 +205,7 @@ test.describe('Agent Features', () => {
     await page.goto('/agents/workflow-agent/overview');
     await expect(page.getByRole('link', { name: 'sequential-steps' })).toBeVisible();
 
-    await page.getByTestId('agent-view-header-new-chat').click();
+    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(page).toHaveURL('/agents/workflow-agent/threads/new');
 
     // Send a message that triggers the workflow

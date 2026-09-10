@@ -14,6 +14,15 @@ function extractRequestContext(body: SendMessageBody | null): Record<string, unk
 }
 
 test.describe('Request Context', () => {
+  let pageErrors: string[] = [];
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+  });
+  test.afterEach(() => {
+    expect(pageErrors, 'unexpected browser errors').toEqual([]);
+  });
+
   test('request context page displays editor and saves JSON', async ({ page }) => {
     await page.goto('/request-context');
 
@@ -63,7 +72,8 @@ test.describe('Request Context', () => {
 
     // 2. Navigate to agent chat and intercept the send-message call
     await page.goto('/agents/test-agent/threads/new');
-    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Test Agent');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Test Agent');
 
     // Intercept the POST to the agent send-message endpoint. The streamed request body
     // is only readable via route.request().postData() during interception — passive
@@ -113,7 +123,8 @@ test.describe('Request Context', () => {
     // 4. Navigate to agent chat again and verify requestContext is empty
     let capturedBodyAfter: SendMessageBody | null = null;
     await page.goto('/agents/test-agent/threads/new');
-    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Test Agent');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Test Agent');
 
     await page.route(SEND_MESSAGE_ROUTE, async (route) => {
       const request = route.request();

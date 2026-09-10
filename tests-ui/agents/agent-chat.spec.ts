@@ -1,10 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 import { fillAndSend, waitForAssistantMessage } from '../helpers';
 
-/** Wait for the standalone thread sidebar to load. */
+/** Wait for the agent's thread navigation, not the global app sidebar. */
 async function waitForThreadSidebar(page: Page) {
-  await expect(page.getByRole('link', { name: 'New Chat' })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Chat' })).toBeVisible({ timeout: 10_000 });
 }
 
 /**
@@ -19,15 +18,21 @@ async function openModelSettings(page: Page) {
 }
 
 test.describe('Agent Chat', () => {
+  let pageErrors: string[] = [];
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+  });
+  test.afterEach(() => {
+    expect(pageErrors, 'unexpected browser errors').toEqual([]);
+  });
+
   test('agent overview shows metadata and links to a new thread', async ({ page }) => {
     await page.goto('/agents/test-agent/overview');
 
     await expect(page).toHaveTitle(/Mastra Studio/);
     await expect(page.getByTestId('agent-settings-view')).toBeVisible();
-    await expect(page.getByTestId('agent-view-header-new-chat')).toHaveAttribute(
-      'href',
-      '/agents/test-agent/threads/new',
-    );
+    await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute('aria-selected', 'true');
 
     // Overview metadata lists attached tools and the system prompt.
     await expect(page.getByRole('link', { name: 'calculator' })).toBeVisible();
@@ -37,6 +42,11 @@ test.describe('Agent Chat', () => {
     // Memory configuration is now part of the overview.
     await expect(page.getByRole('heading', { name: 'Memory' })).toBeVisible();
     await expect(page.getByText('Memory Enabled')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
+    await expect(page).toHaveURL('/agents/test-agent/threads/new');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
   });
 
   test('send message and receive streamed response', async ({ page }) => {
@@ -139,11 +149,10 @@ test.describe('Agent Chat', () => {
     // Expand the thread sidebar if collapsed
     await waitForThreadSidebar(page);
 
-    // At least one thread entry should appear (the one we just created)
-    // Thread entries are links inside ThreadItem components that are NOT "New Chat"
-    const leftPanel = page.getByRole('navigation', { name: 'Main' });
-    const threadEntries = leftPanel.locator('a').filter({ hasNotText: 'New Chat' });
-    await expect(threadEntries.first()).toBeVisible({ timeout: 10_000 });
+    // Require the exact thread we created, not an unrelated navigation link.
+    const threadPath = new URL(page.url()).pathname;
+    const threads = page.getByRole('navigation', { name: 'Threads', exact: true });
+    await expect(threads.locator(`a[href="${threadPath}"]`)).toBeVisible({ timeout: 10_000 });
   });
 
   test('click previous thread to reload it', async ({ page }) => {
@@ -164,11 +173,10 @@ test.describe('Agent Chat', () => {
     // Expand the thread sidebar if collapsed
     await waitForThreadSidebar(page);
 
-    // Click the first previous thread entry (not "New Chat")
-    const leftPanel = page.getByRole('navigation', { name: 'Main' });
-    const threadEntries = leftPanel.locator('a').filter({ hasNotText: 'New Chat' });
-    await expect(threadEntries.first()).toBeVisible({ timeout: 10_000 });
-    await threadEntries.first().click();
+    const threads = page.getByRole('navigation', { name: 'Threads', exact: true });
+    const previousThread = threads.locator(`a[href="${new URL(firstThreadUrl).pathname}"]`);
+    await expect(previousThread).toBeVisible({ timeout: 10_000 });
+    await previousThread.click();
 
     // Should navigate back to the exact same thread URL
     await expect(page).toHaveURL(firstThreadUrl, { timeout: 10_000 });
@@ -204,20 +212,23 @@ test.describe('Agent Chat', () => {
     await expect(toolBadge.first()).toContainText('"operation": "add"');
   });
 
-  test('new thread links back to the agent overview', async ({ page }) => {
+  test('new thread navigates back to the agent overview tab', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
 
-    const backLink = page.getByTestId('thread-sidebar-back');
-    await expect(backLink).toHaveAccessibleName('Back to Test Agent');
-    await expect(backLink).toHaveAttribute('href', '/agents/test-agent/overview');
+    await page.getByRole('tab', { name: 'Overview', exact: true }).click();
+    await expect(page).toHaveURL('/agents/test-agent/overview');
+    await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('heading', { name: 'Test Agent', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'calculator', exact: true })).toBeVisible();
   });
 
   test('approval agent triggers tool approval flow', async ({ page }) => {
     test.slow();
     await page.goto('/agents/approval-agent/threads/new');
 
-    // The standalone thread sidebar identifies the active agent.
-    await expect(page.getByTestId('thread-sidebar-back')).toHaveAccessibleName('Back to Approval Agent');
+    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Approval Agent');
 
     // Ask the agent to greet someone — this should trigger the needs-approval tool
     await fillAndSend(page, 'Please greet John');
