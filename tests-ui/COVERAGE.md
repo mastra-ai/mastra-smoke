@@ -15,7 +15,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | Section                | Done | Todo | Blocked | Notes |
 |------------------------|------|------|---------|-------|
 | Agents                 | 20   | 0    | 0       |       |
-| Agent layout tabs      | 4    | 0    | 0       | Editor icon button disabled; Evals/Traces tabs assert `aria-selected=true` on their route; /review redirects to `/evaluate?tab=review` |
+| Agent layout tabs      | 3    | 0    | 0       | Editor icon button disabled; tab list is exactly Chat/Traces (agent Evals tab removed upstream in mastra-ai/mastra#24205); Traces tab asserts `aria-selected=true` on its scoped route |
 | Tools                  | 7    | 0    | 1       |       |
 | Workflows              | 12   | 0    | 0       |       |
 | MCP Servers            | 3    | 0    | 0       |       |
@@ -35,7 +35,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
 | Settings               | 2    | 0    | 0       |       |
 | Request Context        | 2    | 0    | 0       |       |
-| **Total**              | **90** | **2** | **1** |       |
+| **Total**              | **89** | **2** | **1** |       |
 
 > Run count from `pnpm test:ui`: 91 tests (including global setup). See route map in App.tsx for the full Studio surface.
 
@@ -90,7 +90,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | 6 | Threads navigation lists the exact newly created conversation | ✅     |
 | 7 | Click previous thread to reload it          | ✅     |
 | 8 | Tool call displayed in chat message         | ✅     |
-| 9 | Agent tabs switch between Chat, Traces and Evals   | ✅     |
+| 9 | Agent tabs switch between Chat and Traces          | ✅     |
 | 10 | Approval agent triggers tool approval flow | ✅     |
 | 11 | Agent Config panel shows correct tools list | ✅     |
 
@@ -99,7 +99,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 |   | Test                                                        | Status |
 |---|-------------------------------------------------------------|--------|
 | 1 | Model settings tab shows controls and persists chat method   | ✅     |
-| 2 | Show thread traces switch exposes real spans and returns to chat                    | ✅     |
+| 2 | Agent Traces tab lists the persisted thread's trace and its span payload             | ✅     |
 | 3 | Network mode enabled only with sub-agents and memory         | ✅     |
 | 4 | Advanced settings expand and show fields                     | ✅     |
 | 5 | Thread navigation identifies and switches agents            | ✅     |
@@ -122,7 +122,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | 8 | Foreach-workflow: processes items via JSON      | ✅     |
 | 9 | Retry-workflow: succeeds after retries         | ✅     |
 | 10 | Step detail: click step to view output        | ✅     |
-| 11 | Failure-workflow: failed status and error     | ✅     |
+| 11 | Failure-workflow: failed status + error text in run header | ✅     |
 | 12 | Run history: expand panel, view past runs     | ✅     |
 
 ### Tools — `tests-ui/tools/tool-execution.spec.ts` (7/8)

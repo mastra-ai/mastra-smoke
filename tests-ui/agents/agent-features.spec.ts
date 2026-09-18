@@ -53,35 +53,40 @@ test.describe('Agent Features', () => {
     await expect(page.getByRole('radio', { name: 'Generate' })).toBeChecked();
   });
 
-  test('persisted thread toggles its trace view', async ({ page }) => {
+  test('agent Traces tab lists the trace of a persisted thread', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
     await fillAndSend(page, 'Say hello and nothing else.');
     await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
     await waitForAssistantMessage(page);
+    const threadId = new URL(page.url()).pathname.split('/')[4];
 
-    const showTraces = page.getByRole('switch', { name: 'Show thread traces', exact: true });
-    await expect(showTraces).not.toBeChecked();
-    await showTraces.click();
-    await expect(showTraces).toBeChecked();
-    await expect(page).toHaveURL(/\?variant=advanced$/);
+    // The per-thread "Show thread traces" toggle was removed upstream
+    // (mastra-ai/mastra#24274); the agent-scoped Traces tab is the trace surface.
+    await page.getByRole('tab', { name: 'Traces', exact: true }).click();
+    await expect(page).toHaveURL(/\/agents\/test-agent\/traces\?rootEntityType=agent&filterEntityId=test-agent/);
 
-    const traceView = page.getByTestId('thread-view-by-trace');
-    await expect(traceView).toBeVisible({ timeout: 30_000 });
-    await expect(traceView.getByText('Say hello and nothing else.', { exact: true })).toBeVisible();
-    const agentSpan = traceView.getByRole('button', { name: "agent run: 'test-agent'", exact: true });
+    // Trace indexing can lag the chat response, so poll the auto-refreshing list.
+    const traceRow = page.locator('button.data-list-row').filter({ hasText: 'Say hello and nothing else.' }).first();
+    await expect(traceRow).toBeVisible({ timeout: 30_000 });
+    await expect(traceRow).toContainText("agent run: 'test-agent'");
+    await traceRow.click();
+
+    const details = page.getByRole('dialog', { name: 'Trace details' });
+    await expect(details.getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
+    const agentSpan = details.getByRole('button', { name: /^agent run: 'test-agent'/ });
     await expect(agentSpan).toBeVisible();
     await agentSpan.click();
-    await expect(page.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();
-    const threadId = new URL(page.url()).pathname.split('/')[4];
-    await expect(page.getByRole('textbox').filter({ hasText: '"threadId"' })).toContainText(threadId);
-    await expect(page.getByRole('textbox').filter({ hasText: '"contents"' })).toContainText('Say hello and nothing else.');
-    await page.getByRole('button', { name: 'Close Panel', exact: true }).click();
-    await expect(page.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).not.toBeVisible();
+    await expect(details.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();
+    // The span payload ties the trace back to this exact thread and message.
+    const spanDetails = details.getByRole('tabpanel', { name: 'Details' });
+    await expect(spanDetails.locator('code').filter({ hasText: '"contents"' })).toContainText('Say hello and nothing else.');
+    await expect(spanDetails.locator('code').filter({ hasText: '"threadId"' })).toContainText(threadId);
 
-    await showTraces.click();
-    await expect(showTraces).not.toBeChecked();
-    await expect(page).not.toHaveURL(/variant=advanced/);
-    await expect(traceView).not.toBeVisible();
+    // Span panel and trace drawer each have a Close Panel; close the drawer (first).
+    await details.getByRole('button', { name: 'Close Panel', exact: true }).first().click();
+    await expect(details).not.toBeVisible();
+    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
+    await expect(page).toHaveURL(/\/agents\/test-agent\/threads\//);
     await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
   });
 

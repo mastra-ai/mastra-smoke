@@ -5,21 +5,15 @@ import { test, expect, Page } from '@playwright/test';
  * from the full text content (first word, which is the kebab-case step name).
  */
 async function getStepStatuses(page: Page): Promise<{ name: string; status: string }[]> {
-  return page.$$eval('[data-workflow-node]', nodes =>
-    nodes.map(n => {
-      // Full text looks like "add-greeting 3ms Time travel Input Output".
-      // As of @mastra/core 1.43.x the duration badge is glued directly onto
-      // the step name with no separator, e.g. "add-greeting4ms", so the first
-      // whitespace-separated token can carry a trailing "<number><unit>"
-      // duration suffix. Strip it to recover the kebab-case step name.
-      const fullText = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
-      const firstToken = fullText.split(' ')[0].toLowerCase();
-      const name = firstToken.replace(/\d+(?:\.\d+)?m?s$/, '');
-      return {
-        name,
-        status: n.getAttribute('data-workflow-step-status') ?? 'unknown',
-      };
-    }),
+  // Step cards carry their id in data-workflow-step-key; the visible text glues
+  // name + type badge + status label together ("add-greetingStepCompleted"),
+  // so never derive the name from textContent. Condition nodes have no key and
+  // are skipped.
+  return page.$$eval('[data-workflow-node][data-workflow-step-key]', nodes =>
+    nodes.map(n => ({
+      name: n.getAttribute('data-workflow-step-key') ?? '',
+      status: n.getAttribute('data-workflow-step-status') ?? 'unknown',
+    })),
   );
 }
 
@@ -226,18 +220,20 @@ test.describe('Workflow Execution', () => {
     await page.getByRole('spinbutton', { name: 'Value' }).fill('10');
     await page.getByRole('button', { name: 'Run', exact: true }).click();
 
-    // As of @mastra/core 1.44.x the graph renders a timeline panel with a
-    // clickable row per step (data-testid="workflow-timeline-row"). Wait for
-    // the row and open it to reveal the step result.
+    // The timeline is collapsed by default; expanding it renders one
+    // data-testid="workflow-timeline-row" per executed step with
+    // "View step input/output" actions that open the Data inspector.
+    await expect(page.getByRole('button', { name: 'Run data' })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Expand timeline' }).click();
     const row = page.locator(
       '[data-testid="workflow-timeline-row"][data-workflow-step-key="handle-positive"]',
     );
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await row.click();
+    await row.getByRole('button', { name: 'View step output' }).click();
 
-    // The step output is shown in a CodeMirror JSON viewer under "Run output".
-    await page.getByText('Run output', { exact: true }).click();
-    await expect(page.locator('.cm-content')).toContainText('Positive: 10', { timeout: 5_000 });
+    const inspector = page.getByRole('region', { name: 'Data inspector' });
+    await expect(inspector).toBeVisible();
+    await expect(inspector).toContainText('Positive: 10', { timeout: 5_000 });
   });
 
   test('failure-workflow: step shows failed status and error detail', async ({ page }) => {
@@ -253,16 +249,19 @@ test.describe('Workflow Execution', () => {
     const steps = await getStepStatuses(page);
     expect(expectStep(steps, 'always-fails').status).toBe('failed');
 
-    // Open the failed step's timeline row. NOTE: as of @mastra/core 1.44.x the
-    // graph UI no longer surfaces the step error message anywhere in the panel
-    // (a failed step only shows the "Failed" badge + run id, no error detail).
-    // We assert the failed status and that the row is interactable; the
-    // error-text assertion is dropped pending an upstream fix (see KNOWN_ISSUES).
+    // The run header surfaces the failing step and its error message again
+    // (restored with the mastra@1.31.0-alpha.5 canvas redesign).
+    const info = page.getByTestId('workflow-information-panel');
+    await expect(info.getByText('Workflow failed', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(info.getByText('always-fails: Intentional failure for smoke test', { exact: true })).toBeVisible();
+
+    // The timeline row for the failed step is marked Failed and has no output.
+    await page.getByRole('button', { name: 'Expand timeline' }).click();
     const row = page.locator(
       '[data-testid="workflow-timeline-row"][data-workflow-step-key="always-fails"]',
     );
-    await expect(row).toBeVisible({ timeout: 5_000 });
-    await row.click();
+    await expect(row.getByRole('button', { name: 'Failed always-fails' })).toBeVisible({ timeout: 5_000 });
+    await expect(row.getByRole('button', { name: 'View step output' })).toBeDisabled();
   });
 
   test('run history: shows past runs and navigates to them', async ({ page }) => {

@@ -197,7 +197,7 @@ Both tests use `it(name, { timeout, retry: 2 }, fn)`. A passing turn is
 retries clears it. Bumping the timeout alone does not help (the loop
 never converges). Remove the retries once the upstream loop is fixed.
 
-## 9. Workflow graph redesign (@mastra/core 1.44.x) + lost step-error detail
+## 9. Workflow graph redesign (@mastra/core 1.44.x) + lost step-error detail (resolved)
 
 **Symptom**
 
@@ -226,15 +226,15 @@ The workflow graph page was redesigned:
 The spec was rewritten to use the stable `data-workflow-step-key` /
 `data-testid` hooks and status attributes instead of role/heading text.
 
-**Upstream gap (unfixed)**
+**Upstream gap (resolved)**
 
-A **failed** workflow step no longer surfaces its error message anywhere in
-the graph UI — the panel shows only a "Failed" badge + run id, with no
-"Run output" section and no error text. The
-`failure-workflow: step shows failed status and error detail` test therefore
-asserts only the `failed` *status* (via `data-workflow-step-status`); the
-error-text assertion (`Intentional failure for smoke test`) was dropped.
-Restore it once the graph UI re-exposes failed-step error detail.
+Between `@mastra/core` 1.44.x and `mastra@1.31.0-alpha.0` a failed workflow
+step surfaced no error text in the graph UI, so the
+`failure-workflow: step shows failed status and error detail` test asserted
+only the `failed` status. The canvas redesign in `mastra@1.31.0-alpha.5`
+(mastra-ai/mastra#24030) renders "Workflow failed" plus
+`always-fails: Intentional failure for smoke test` in the run header, and the
+error-text assertion is back in the spec.
 
 ## 10. MCP disconnect crashes the server after the 15s keepalive
 
