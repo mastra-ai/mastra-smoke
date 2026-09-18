@@ -33,13 +33,25 @@ describe('agents — voice + speakers (empty-provider shape)', () => {
     expect(data).toEqual({ enabled: false });
   });
 
-  it('POST /api/agents/:id/voice/listen rejects an empty body with 400 "Audio data is required"', async () => {
+  it('POST /api/agents/:id/voice/listen rejects a body without audio with 400', async () => {
     const res = await fetchApi(`/api/agents/${AGENT_ID}/voice/listen`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
-    const data = (await res.json()) as { error: string };
-    expect(data.error).toBe('Audio data is required');
+    const data = (await res.json()) as {
+      error: string;
+      issues?: Array<{ field: string; message: string }>;
+    };
+    // The route's body schema declares `audio: z.unknown()`. Under zod v4 that key
+    // is required, so the server rejects at the validation layer with the
+    // structured envelope; under zod v3 the key is optional and the handler's own
+    // guard fires instead. Both legs must reject the request as missing audio.
+    if (data.error === 'Invalid request body') {
+      expect(data.issues?.map((i) => i.field)).toContain('audio');
+    } else {
+      expect(data.error).toBe('Audio data is required');
+    }
   });
 
   it('GET /api/agents/:id/speakers returns 404 for an unknown agent', async () => {

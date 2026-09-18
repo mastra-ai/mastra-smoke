@@ -637,7 +637,7 @@
 | `GET /agents/:id/speakers` returns `[]` when no voice provider is configured | 🔒 empty-provider |
 | `GET /agents/:id/voice/speakers` returns `[]` when no voice provider is configured | 🔒 empty-provider |
 | `GET /agents/:id/voice/listener` returns `{ enabled: false }` | 🔒 empty-provider |
-| `POST /agents/:id/voice/listen` rejects empty body with 400 "Audio data is required" | ✅ |
+| `POST /agents/:id/voice/listen` rejects a body without `audio` with 400 (schema envelope on zod v4, handler guard on zod v3) | ✅ |
 | `GET /agents/:id/speakers` returns 404 for an unknown agent (error names the id) | ✅ |
 
 ---

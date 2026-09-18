@@ -1,8 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
-async function expectDatasetLoaded(page: Page, datasetName: string | RegExp) {
+async function expectDatasetLoaded(page: Page, datasetName: string) {
   await expect(page.getByRole('heading', { name: 'Dataset', level: 1, exact: true })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('link', { name: datasetName, exact: true })).toBeVisible({ timeout: 10_000 });
+  // The current breadcrumb crumb is a "Switch dataset" combobox labelled with the
+  // dataset name (Studio unified crumbs: current = label + switcher, not a link).
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch dataset' }))
+    .toHaveText(datasetName, { timeout: 10_000 });
 }
 
 test.describe('Datasets', () => {
@@ -78,9 +81,9 @@ test.describe('Datasets', () => {
     await expectDatasetLoaded(page, 'Items Test Dataset');
 
     // Should show empty items tab initially — the single-item action should be present.
-    await expect(page.getByRole('button', { name: 'Add Item', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New item', exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Add Item', exact: true }).click();
+    await page.getByRole('button', { name: 'New item', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Add Item' })).toBeVisible();
 
     // The dialog has textbox editors for Input and Ground Truth
@@ -245,7 +248,7 @@ test.describe('Datasets', () => {
 
     // The items-only detail page should show its empty state after deletion.
     await expect(page.getByRole('heading', { name: 'No items yet', level: 3 })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add Item', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New item', exact: true })).toBeVisible();
 
   });
 

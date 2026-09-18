@@ -277,3 +277,18 @@ delete action. Upstream PR #22768 restored the permission-gated action and
 closed [mastra-ai/mastra#22763](https://github.com/mastra-ai/mastra/issues/22763).
 The fix is present in `mastra@1.27.3-alpha.10`, and the delete-thread UI test is
 enabled again.
+
+## 13. `GET /api/background-tasks` returns 400 on the zod 3 leg (upstream)
+
+Since upstream PR #23892 (`@mastra/server` ≥ 1.68.0-alpha.0),
+`packages/server/src/server/schemas/background-tasks.ts` builds its query
+schema from bare `zod` while composing `paginationNumber()` from `common.ts`,
+which is built from `zod/v4`. When the application resolves `zod` to v3 (the
+zod 3 matrix leg), the v3 object wraps v4 field schemas and the route fails
+query parsing with `keyValidator._parse is not a function` (HTTP 400). The
+zod 4 leg is unaffected because both imports resolve to the same instance.
+
+`tests/background-tasks/background-tasks.test.ts` › "GET /background-tasks
+returns the paginated tasks envelope" fails on zod 3 until
+[mastra-ai/mastra#24394](https://github.com/mastra-ai/mastra/pull/24394) ships
+in the alpha. The test is correct and left unchanged.

@@ -9,6 +9,11 @@ function traceEntries(page: Page) {
   return page.locator('button.data-list-row');
 }
 
+/** The trace detail drawer (Base UI dialog named "Trace details"). */
+function traceDetails(page: Page) {
+  return page.getByRole('dialog', { name: 'Trace details' });
+}
+
 test.describe('Observability', () => {
   // Self-contained tests that generate their own traces go first,
   // so subsequent tests can rely on traces existing in the database.
@@ -92,8 +97,8 @@ test.describe('Observability', () => {
     await expect(traceEntries(page).first()).toBeVisible({ timeout: 10_000 });
     await traceEntries(page).first().click();
 
-    // The trace detail panel should open (heading is "Trace # <id>")
-    await expect(page.getByRole('heading', { name: /^Trace #/ })).toBeVisible({ timeout: 5_000 });
+    // The trace detail panel opens as a "Trace details" dialog headed "Trace <id…>".
+    await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
 
     // Span buttons should be visible in the timeline
     const spanButton = page.getByRole('button', { name: /workflow (run|step):/ });
@@ -101,7 +106,7 @@ test.describe('Observability', () => {
 
     // Close the panel
     await page.getByRole('button', { name: 'Close Panel' }).first().click();
-    await expect(page.getByRole('heading', { name: /^Trace #/ })).not.toBeVisible();
+    await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).not.toBeVisible();
   });
 
   test('span inspection within trace', async ({ page }) => {
@@ -110,15 +115,15 @@ test.describe('Observability', () => {
     const workflowTrace = traceEntries(page).filter({ hasText: 'sequential-steps' }).first();
     await expect(workflowTrace).toBeVisible({ timeout: 10_000 });
     await workflowTrace.click();
-    await expect(page.getByRole('heading', { name: /^Trace #/ })).toBeVisible({ timeout: 5_000 });
+    await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
 
     // Click a step span in the timeline
     const stepSpan = page.getByRole('button', { name: /workflow step:/ });
     await expect(stepSpan.first()).toBeVisible({ timeout: 5_000 });
     await stepSpan.first().click();
 
-    // The span detail panel should open (heading is "Span # <id>")
-    await expect(page.getByRole('heading', { name: /^Span #/ })).toBeVisible({ timeout: 5_000 });
+    // The span detail panel opens inside the same dialog headed "Span <id…>".
+    await expect(traceDetails(page).getByRole('heading', { name: /^Span [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
     await expect(page.getByRole('tab', { name: 'Details' })).toBeVisible();
   });
 });

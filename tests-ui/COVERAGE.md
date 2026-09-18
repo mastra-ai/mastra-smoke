@@ -15,7 +15,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | Section                | Done | Todo | Blocked | Notes |
 |------------------------|------|------|---------|-------|
 | Agents                 | 20   | 0    | 0       |       |
-| Agent layout tabs      | 4    | 0    | 0       | Editor disabled, Evaluate/Review/Agent traces tabs assert `aria-selected=true` on their route |
+| Agent layout tabs      | 4    | 0    | 0       | Editor icon button disabled; Evals/Traces tabs assert `aria-selected=true` on their route; /review redirects to `/evaluate?tab=review` |
 | Tools                  | 7    | 0    | 1       |       |
 | Workflows              | 12   | 0    | 0       |       |
 | MCP Servers            | 3    | 0    | 0       |       |
@@ -82,17 +82,17 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
-| 1 | Agent overview shows metadata and Chat tab opens a new thread | ✅     |
+| 1 | Agent page shows config metadata (capability strip + Config panel) and opens on a new thread | ✅     |
 | 2 | Send message and receive streamed response  | ✅     |
 | 3 | Send message with generate mode             | ✅     |
-| 4 | Model settings persist after reload         | ✅     |
+| 4 | Model settings persist after reload (per-thread preferences) | ✅     |
 | 5 | New chat button navigates to fresh thread   | ✅     |
 | 6 | Threads navigation lists the exact newly created conversation | ✅     |
 | 7 | Click previous thread to reload it          | ✅     |
 | 8 | Tool call displayed in chat message         | ✅     |
-| 9 | New thread navigates back via the Overview tab     | ✅     |
+| 9 | Agent tabs switch between Chat, Traces and Evals   | ✅     |
 | 10 | Approval agent triggers tool approval flow | ✅     |
-| 11 | Agent overview shows correct tools list    | ✅     |
+| 11 | Agent Config panel shows correct tools list | ✅     |
 
 #### `agent-features.spec.ts` (9/9)
 
@@ -103,7 +103,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | 3 | Network mode enabled only with sub-agents and memory         | ✅     |
 | 4 | Advanced settings expand and show fields                     | ✅     |
 | 5 | Thread navigation identifies and switches agents            | ✅     |
-| 6 | Network-agent overview shows sub-agents section              | ✅     |
+| 6 | Network-agent Config panel shows sub-agents section          | ✅     |
 | 7 | Agents list shows all agents with correct attached entities  | ✅     |
 | 8 | Network-agent delegates to helper-agent via sub-agent call   | ✅     |
 | 9 | Workflow-agent triggers workflow and workflow badge renders   | ✅     |
