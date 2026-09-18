@@ -109,9 +109,14 @@ describe('MCP REST API', () => {
         body: JSON.stringify({ data: {} }),
       });
 
-      expect(status).toBe(200);
-      expect(data.result.error).toBe(true);
-      expect(data.result.message).toContain('Tool validation failed');
+      // @mastra/mcp 2.x rejects invalid input (MCP_SERVER_TOOL_INVALID_INPUT,
+      // ErrorCategory.USER) instead of resolving an in-band error envelope, so the
+      // REST route answers 400 with the validation message.
+      expect(status).toBe(400);
+      expect(data.error).toContain('Tool input validation failed for calculator');
+      expect(data.error).toContain('operation');
+      expect(data.error).toContain('- a:');
+      expect(data.error).toContain('- b:');
     });
   });
 });

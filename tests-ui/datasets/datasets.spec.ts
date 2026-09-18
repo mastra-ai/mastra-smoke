@@ -116,7 +116,9 @@ test.describe('Datasets', () => {
     // "Input" / "Ground Truth" also appear as table column headers, so scope the
     // label assertions to the detail panel (the last occurrence, rendered after
     // the items table) to avoid ambiguous matches.
-    await expect(page.getByRole('heading', { name: /^Item #/, level: 3 })).toBeVisible({ timeout: 5_000 });
+    const itemPanel = page.getByRole('dialog', { name: /^Dataset item / });
+    await expect(itemPanel).toBeVisible({ timeout: 5_000 });
+    await expect(itemPanel.getByRole('heading', { name: /^Item /, level: 3 })).toBeVisible();
     await expect(page.getByText('Input', { exact: true }).last()).toBeVisible();
     await expect(page.getByText('Ground Truth', { exact: true }).last()).toBeVisible();
 
@@ -185,7 +187,9 @@ test.describe('Datasets', () => {
     await page.getByRole('button', { name: /original/ }).click();
 
     // Detail panel should show read-only content
-    await expect(page.getByRole('heading', { name: /^Item #/, level: 3 })).toBeVisible({ timeout: 5_000 });
+    const itemPanel = page.getByRole('dialog', { name: /^Dataset item / });
+    await expect(itemPanel).toBeVisible({ timeout: 5_000 });
+    await expect(itemPanel.getByRole('heading', { name: /^Item /, level: 3 })).toBeVisible();
 
     // Open item actions menu → Edit
     await page.getByRole('button', { name: 'Actions menu' }).last().click();
@@ -230,7 +234,9 @@ test.describe('Datasets', () => {
 
     // Click item button to open detail panel
     await page.getByRole('button', { name: /to_delete/ }).click();
-    await expect(page.getByRole('heading', { name: /^Item #/, level: 3 })).toBeVisible({ timeout: 5_000 });
+    const itemPanel = page.getByRole('dialog', { name: /^Dataset item / });
+    await expect(itemPanel).toBeVisible({ timeout: 5_000 });
+    await expect(itemPanel.getByRole('heading', { name: /^Item /, level: 3 })).toBeVisible();
 
     // Open item actions menu → Delete Item
     await page.getByRole('button', { name: 'Actions menu' }).last().click();

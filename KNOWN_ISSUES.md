@@ -292,3 +292,25 @@ zod 4 leg is unaffected because both imports resolve to the same instance.
 returns the paginated tasks envelope" fails on zod 3 until
 [mastra-ai/mastra#24394](https://github.com/mastra-ai/mastra/pull/24394) ships
 in the alpha. The test is correct and left unchanged.
+
+## 14. `@mastra/mcp` 2.0 + zod 3: MCP tool calls rejected with a 2019-09 `$schema` error (upstream)
+
+`@mastra/mcp@2.0.0-alpha.4` (mastra-ai/mastra#23876) rebuilt the server on the
+MCP 2026-07-28 revision. With **zod v3** resolved, the server advertises tool
+`inputSchema`/`outputSchema` with
+`"$schema": "https://json-schema.org/draft/2019-09/schema#"`, and the
+`MCPClient` wraps that schema with a draft-07-only validator, so every call
+over the protocol fails before execution:
+
+```
+Tool input validation failed for test-mcp_calculator ...
+- root: Schema validation error: no schema with key or ref "https://json-schema.org/draft/2019-09/schema#"
+```
+
+zod v4 emits a 2020-12 `$schema` and works. The Studio/REST route
+(`POST /api/mcp/:id/tools/:tool/execute`) is unaffected on both legs.
+
+`tests/mcp/client.test.ts` › "should execute calculator / string-transform
+tool via Streamable HTTP" fail on the zod 3 leg until
+[mastra-ai/mastra#24403](https://github.com/mastra-ai/mastra/issues/24403) is
+fixed. The tests are correct and left unchanged.

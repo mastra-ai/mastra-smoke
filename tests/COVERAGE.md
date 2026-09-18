@@ -17,7 +17,7 @@
 | Agents           | 35    | Complete (+4 extras: instructions enhance, model set/reset, models reorder, clone gating); voice/speakers ⚠️ partial — 5 shape-only tests against a no-voice agent, real speak/listen paths untested |
 | Datasets         | 19    | Complete |
 | Workspace        | 27    | Complete (+3 skills-sh registry: search/popular/preview) |
-| MCP              | 17    | Complete |
+| MCP              | 15    | Complete |
 | Processors       | 17    | Complete |
 | Tools            | 15    | Complete |
 | Memory           | 20    | Complete (+4 extras: thread clone, search, observational-memory gating, buffer-status gating) |
@@ -36,7 +36,7 @@
 | Vectors          | 1     | NEW — `/api/vectors` empty-registry shape |
 | Vector Store     | 0/7   | 🔒 Needs embedder + vector config (per-index endpoints) |
 | Logs             | 0/3   | 🔒 Needs logger transports |
-| **Total**        | **362** |      |
+| **Total**        | **360** |      |
 
 ### Coverage by `/api/*` route group (cross-reference)
 
@@ -315,7 +315,7 @@
 
 ---
 
-### MCP (17 tests, 2 files)
+### MCP (15 tests, 2 files)
 
 #### REST API — `rest.test.ts` (11 tests)
 
@@ -331,18 +331,16 @@
 | Execute calculator via MCP REST endpoint (exact result) | ✅ |
 | Execute string-transform via MCP REST endpoint (exact result) | ✅ |
 | 500 when executing non-existent tool | ✅ |
-| Validation error for missing required fields (200 with error shape) | ✅ |
+| 400 + validation message for missing required fields (@mastra/mcp 2.x rejects invalid input) | ✅ |
 
-#### Client Transport — `client.test.ts` (6 tests)
+#### Client Transport — `client.test.ts` (4 tests)
 
 | Test | Status |
 |------|--------|
 | Connect and list tools via Streamable HTTP transport | ✅ |
 | Execute calculator tool via Streamable HTTP | ✅ |
 | Execute string-transform tool via Streamable HTTP | ✅ |
-| Connect and list tools via SSE fallback transport | ✅ |
-| Execute calculator tool via SSE transport | ✅ |
-| Execute string-transform tool via SSE transport | ✅ |
+| Legacy `/sse` endpoint refused with explicit "unavailable for MCP v2 servers" 404 (transport removed in mastra-ai/mastra#23876) | ✅ |
 
 ---
 
@@ -708,7 +706,7 @@ still require a real vector store to be wired up in the smoke fixture.
 
 | Endpoint | Priority |
 |----------|----------|
-| `POST /mcp/:serverId/messages` — SSE message forwarding | Low |
+| `POST /mcp/:serverId/messages` — legacy SSE message endpoint; refused (404) for v2 servers alongside `/sse` | Low |
 | MCP resources (list, read, subscribe) | Medium |
 | MCP prompts (list, get) | Medium |
 
