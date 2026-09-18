@@ -61,10 +61,9 @@ test.describe('Observability', () => {
 
     await expect(page.getByRole('heading', { name: 'Traces', level: 1 })).toBeVisible();
 
-    // Filter controls should be visible. Toolbar shape varies across alpha
-    // versions ("Show subtraces" switch vs "Top-level traces only" button,
-    // etc.), so only assert the stable Add Filter button.
-    await expect(page.getByRole('button', { name: 'Add Filter' })).toBeVisible();
+    // Filters are a "Trace filters" group with an "Add filter" combobox.
+    const filters = page.getByRole('group', { name: 'Trace filters' });
+    await expect(filters.getByRole('combobox', { name: 'Add filter' })).toBeVisible();
 
     // At least one trace entry should exist (seeded by the tests above)
     await expect(traceEntries(page).first()).toBeVisible({ timeout: 10_000 });
@@ -74,28 +73,30 @@ test.describe('Observability', () => {
     await page.goto('/observability');
     await expect(traceEntries(page).first()).toBeVisible({ timeout: 10_000 });
 
-    // Open the filter menu and verify "Primitive Type" has an "Any" option
-    await page.getByRole('button', { name: 'Add Filter' }).click();
-    await page.getByRole('menuitem', { name: 'Primitive Type' }).click();
-    await expect(page.getByRole('radio', { name: 'Any', exact: true })).toBeVisible();
+    // Add filter is a two-step combobox: pick the field, then its value.
+    await page.getByRole('combobox', { name: 'Add filter' }).click();
+    await page.getByRole('option', { name: 'Primitive Type' }).click();
+    await page.getByRole('option', { name: 'Workflow', exact: true }).click();
 
-    // Select Workflow type to narrow down results
-    await page.getByRole('radio', { name: 'Workflow', exact: true }).click();
-    await page.keyboard.press('Escape');
+    // The active filter is rendered as a chip and reflected in the URL.
+    const filters = page.getByRole('group', { name: 'Trace filters' });
+    await expect(filters.getByRole('combobox', { name: 'Value: Workflow' })).toBeVisible();
+    await expect(page).toHaveURL(/rootEntityType=workflow_run/, { timeout: 5_000 });
 
-    // URL should update with the entity type filter
-    await expect(page).toHaveURL(/rootEntityType|filter/, { timeout: 5_000 });
-
-    // At least one workflow trace should still be visible
+    // Only workflow traces remain.
     await expect(traceEntries(page).first()).toBeVisible({ timeout: 10_000 });
+    await expect(traceEntries(page).filter({ hasText: 'agent run' })).toHaveCount(0);
+    await expect(traceEntries(page).filter({ hasText: 'workflow run' }).first()).toBeVisible();
   });
 
   test('click trace to open detail panel', async ({ page }) => {
     await page.goto('/observability');
 
-    // Click the first trace entry
-    await expect(traceEntries(page).first()).toBeVisible({ timeout: 10_000 });
-    await traceEntries(page).first().click();
+    // Open a workflow trace (the newest entry may be an agent trace, whose
+    // spans are named differently).
+    const workflowTrace = traceEntries(page).filter({ hasText: 'workflow run' }).first();
+    await expect(workflowTrace).toBeVisible({ timeout: 10_000 });
+    await workflowTrace.click();
 
     // The trace detail panel opens as a "Trace details" dialog headed "Trace <id…>".
     await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });

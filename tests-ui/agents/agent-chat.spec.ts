@@ -51,7 +51,13 @@ test.describe('Agent Chat', () => {
     await expect(config.getByRole('link', { name: 'calculator', exact: true })).toBeVisible();
     await expect(config.getByRole('link', { name: 'string-transform', exact: true })).toBeVisible();
     await expect(config.getByRole('heading', { name: 'Memory', level: 3 })).toBeVisible();
-    await expect(config.getByText('Memory Enabled')).toBeVisible();
+    // Memory renders as a definition list: Status → Enabled, Last Messages → 20.
+    const memory = config.locator('section').filter({
+      has: page.getByRole('heading', { name: 'Memory', exact: true, level: 3 }),
+    });
+    await expect(memory.locator('dl')).toBeVisible();
+    await expect(memory.locator('dt')).toHaveText([/Status/, /Last Messages/, /Auto-generate Titles/]);
+    await expect(memory.locator('dd')).toHaveText([/Enabled/, /^20$/, /Disabled/]);
     await expect(config.getByRole('heading', { name: 'System Prompt', level: 3 })).toBeVisible();
     await expect(config.getByText('You are a helpful test agent.')).toBeVisible();
   });
@@ -227,17 +233,15 @@ test.describe('Agent Chat', () => {
     await expect(toolBadge.first()).toContainText('"operation": "add"');
   });
 
-  test('agent tabs switch between chat, traces and evals', async ({ page }) => {
+  test('agent tabs switch between chat and traces', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
+    const tabs = page.getByRole('tablist').filter({ has: page.getByRole('tab', { name: 'Chat', exact: true }) });
+    await expect(tabs.getByRole('tab')).toHaveText(['Chat', 'Traces']);
     await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
 
     await page.getByRole('tab', { name: 'Traces', exact: true }).click();
-    await expect(page).toHaveURL(/\/agents\/test-agent\/traces/);
+    await expect(page).toHaveURL(/\/agents\/test-agent\/traces\?rootEntityType=agent&filterEntityId=test-agent/);
     await expect(page.getByRole('tab', { name: 'Traces', exact: true })).toHaveAttribute('aria-selected', 'true');
-
-    await page.getByRole('tab', { name: 'Evals', exact: true }).click();
-    await expect(page).toHaveURL(/\/agents\/test-agent\/evaluate/);
-    await expect(page.getByRole('tab', { name: 'Evals', exact: true })).toHaveAttribute('aria-selected', 'true');
 
     await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(page).toHaveURL('/agents/test-agent/threads/new');

@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 
-// Studio's agent layout exposes Chat / Traces / Evals tabs. The Editor entry is
-// an icon-only control next to the tab list that is disabled because the smoke
-// fixture has no MastraEditor registered. /review is a loader redirect into the
-// Evals tab's Review sub-tab. These tests assert tab selection by URL and surface
-// the presence of tab-specific landmarks.
+// Studio's agent layout exposes Chat / Traces tabs. The Editor entry is an
+// icon-only control next to the tab list that is disabled because the smoke
+// fixture has no MastraEditor registered. The agent-scoped Evals tab (and its
+// /evaluate and /review routes) was removed upstream in mastra-ai/mastra#24205;
+// evaluation now lives only under the global /experiments, /datasets, /scorers
+// and /experiments/review-queue pages. These tests assert tab selection by URL
+// and surface the presence of tab-specific landmarks.
 
 test.describe('Agent layout tabs', () => {
   test('/agents/test-agent/editor: Editor entry is rendered but disabled', async ({ page }) => {
@@ -25,34 +27,11 @@ test.describe('Agent layout tabs', () => {
     expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
   });
 
-  test('/agents/test-agent/evaluate: Evals tab is active and empty state shows', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('pageerror', err => errors.push(err.message));
-
-    await page.goto('/agents/test-agent/evaluate');
-    await expect(page).toHaveURL(/\/agents\/test-agent\/evaluate/);
-
-    const evalsTab = page.getByRole('tab', { name: 'Evals', exact: true });
-    await expect(evalsTab).toHaveAttribute('aria-selected', 'true');
-
-    // Evals exposes sub-tabs (Experiments / Datasets / Scorers / Review).
-    await expect(page.getByRole('tab', { name: 'Experiments', exact: true })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('heading', { name: 'No Experiments yet' })).toBeVisible();
-
-    expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
-  });
-
-  test('/agents/test-agent/review: redirects into the Evals Review sub-tab', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('pageerror', err => errors.push(err.message));
-
-    await page.goto('/agents/test-agent/review');
-    await expect(page).toHaveURL(/\/agents\/test-agent\/evaluate\?tab=review/);
-
-    await expect(page.getByRole('tab', { name: 'Evals', exact: true })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('tab', { name: 'Review', exact: true })).toHaveAttribute('aria-selected', 'true');
-
-    expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
+  test('/agents/test-agent: tab list is exactly Chat and Traces', async ({ page }) => {
+    await page.goto('/agents/test-agent/threads/new');
+    const tabs = page.getByRole('tablist').filter({ has: page.getByRole('tab', { name: 'Chat', exact: true }) });
+    await expect(tabs.getByRole('tab')).toHaveText(['Chat', 'Traces']);
+    await expect(page.getByRole('tab', { name: 'Evals', exact: true })).toHaveCount(0);
   });
 
   test('/agents/test-agent/traces: Traces tab is active and scoped to the agent', async ({ page }) => {
