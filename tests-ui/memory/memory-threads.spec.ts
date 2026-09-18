@@ -150,12 +150,14 @@ test.describe('Memory & Threads', () => {
     const wmTextarea = page.getByPlaceholder('Enter working memory content...');
     await expect(wmTextarea).toBeVisible({ timeout: 5_000 });
 
-    // Save and Cancel buttons should be visible
-    await expect(page.getByRole('button', { name: 'Save Changes' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    // Save and Cancel buttons should be visible. Scope to the memory overlay: the
+    // chat composer also exposes an icon-only 'Cancel' (stop generation) button.
+    const memoryOverlay = page.getByTestId('memory-sidebar-overlay');
+    await expect(memoryOverlay.getByRole('button', { name: 'Save Changes' })).toBeVisible();
+    await expect(memoryOverlay.getByRole('button', { name: 'Cancel' })).toBeVisible();
 
     // Test Cancel first — should return to read-only view
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await memoryOverlay.getByRole('button', { name: 'Cancel' }).click();
     await expect(wmTextarea).not.toBeVisible({ timeout: 5_000 });
     await expect(editButton).toBeVisible();
 
@@ -168,7 +170,7 @@ test.describe('Memory & Threads', () => {
     await wmTextarea.fill('# Custom Working Memory\n\nEdited by smoke test');
 
     // Click Save Changes
-    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await memoryOverlay.getByRole('button', { name: 'Save Changes' }).click();
 
     // Textarea should disappear after save
     await expect(wmTextarea).not.toBeVisible({ timeout: 10_000 });

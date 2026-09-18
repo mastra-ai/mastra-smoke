@@ -14,6 +14,25 @@ export async function fillAndSend(page: Page, message: string) {
 }
 
 /**
+ * Open the agent "Config" side panel (the former Overview page content: tools,
+ * workflows, sub-agents, memory, system prompt). The header toggle is a pressed
+ * button whose open state persists across navigations, so only click it when the
+ * panel is not already mounted. Returns the panel locator.
+ */
+export async function openAgentConfigPanel(page: Page) {
+  const panel = page.getByTestId('agent-overview-panel');
+  const toggle = page.getByTestId('agent-overview-panel-toggle');
+  await expect(toggle).toBeVisible({ timeout: 10_000 });
+  if (!(await panel.isVisible())) {
+    await toggle.click();
+  }
+  await expect(panel).toBeVisible({ timeout: 5_000 });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(panel.getByRole('heading', { name: 'Config', level: 2 })).toBeVisible();
+  return panel;
+}
+
+/**
  * Wait for the assistant message to appear in the thread.
  * Uses data-message-id (renamed from data-message-index in Studio) to find
  * the last message in the thread.

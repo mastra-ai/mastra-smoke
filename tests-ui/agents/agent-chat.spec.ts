@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { fillAndSend, waitForAssistantMessage } from '../helpers';
+import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage } from '../helpers';
 
 /** Wait for the agent's thread navigation, not the global app sidebar. */
 async function waitForThreadSidebar(page: Page) {
@@ -27,26 +27,33 @@ test.describe('Agent Chat', () => {
     expect(pageErrors, 'unexpected browser errors').toEqual([]);
   });
 
-  test('agent overview shows metadata and links to a new thread', async ({ page }) => {
+  test('agent page shows config metadata and opens on a new thread', async ({ page }) => {
+    // The dedicated overview route was folded into the agent page: /overview
+    // redirects to the Chat tab and the metadata lives in the Config side panel.
     await page.goto('/agents/test-agent/overview');
+    await expect(page).toHaveURL('/agents/test-agent/threads/new');
 
     await expect(page).toHaveTitle(/Mastra Studio/);
-    await expect(page.getByTestId('agent-settings-view')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute('aria-selected', 'true');
-
-    // Overview metadata lists attached tools and the system prompt.
-    await expect(page.getByRole('link', { name: 'calculator' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'string-transform' })).toBeVisible();
-    await expect(page.getByText('You are a helpful test agent.')).toBeVisible();
-
-    // Memory configuration is now part of the overview.
-    await expect(page.getByRole('heading', { name: 'Memory' })).toBeVisible();
-    await expect(page.getByText('Memory Enabled')).toBeVisible();
-
-    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
-    await expect(page).toHaveURL('/agents/test-agent/threads/new');
     await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch agent' }))
+      .toHaveText('Test Agent');
     await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
+
+    // The capability strip summarises what is attached to the agent.
+    await page.getByRole('button', { name: 'Show capability details' }).click();
+    await expect(page.getByRole('link', { name: 'Tools: 2' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Memory: On' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Sub-agents: Off' })).toBeVisible();
+
+    // Config panel lists attached tools, memory configuration and the system prompt.
+    const config = await openAgentConfigPanel(page);
+    await expect(config.getByRole('heading', { name: 'Tools 2', level: 3 })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'calculator', exact: true })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'string-transform', exact: true })).toBeVisible();
+    await expect(config.getByRole('heading', { name: 'Memory', level: 3 })).toBeVisible();
+    await expect(config.getByText('Memory Enabled')).toBeVisible();
+    await expect(config.getByRole('heading', { name: 'System Prompt', level: 3 })).toBeVisible();
+    await expect(config.getByText('You are a helpful test agent.')).toBeVisible();
   });
 
   test('send message and receive streamed response', async ({ page }) => {
@@ -90,7 +97,14 @@ test.describe('Agent Chat', () => {
   });
 
   test('model settings persist after reload', async ({ page }) => {
+    // Model settings are stored per thread (mastra-thread-preferences-[agent, thread]).
+    // /threads/new mints a fresh provisional thread on every load, so persistence
+    // can only be observed on a real thread — create one first.
     await page.goto('/agents/test-agent/threads/new');
+    await fillAndSend(page, 'Hi');
+    await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
+    await waitForAssistantMessage(page);
+    const threadUrl = page.url();
 
     // Open the Model settings popover dialog
     await openModelSettings(page);
@@ -111,8 +125,9 @@ test.describe('Agent Chat', () => {
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
 
-    // Reload and verify both Generate mode and Max Steps persisted
+    // Reload the same thread and verify both Generate mode and Max Steps persisted
     await page.reload();
+    await expect(page).toHaveURL(threadUrl);
     await openModelSettings(page);
     await expect(page.getByRole('radio', { name: 'Generate' })).toHaveAttribute('aria-checked', 'true');
     await page.getByRole('button', { name: 'Advanced Settings' }).click();
@@ -212,15 +227,21 @@ test.describe('Agent Chat', () => {
     await expect(toolBadge.first()).toContainText('"operation": "add"');
   });
 
-  test('new thread navigates back to the agent overview tab', async ({ page }) => {
+  test('agent tabs switch between chat, traces and evals', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
     await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
 
-    await page.getByRole('tab', { name: 'Overview', exact: true }).click();
-    await expect(page).toHaveURL('/agents/test-agent/overview');
-    await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('heading', { name: 'Test Agent', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'calculator', exact: true })).toBeVisible();
+    await page.getByRole('tab', { name: 'Traces', exact: true }).click();
+    await expect(page).toHaveURL(/\/agents\/test-agent\/traces/);
+    await expect(page.getByRole('tab', { name: 'Traces', exact: true })).toHaveAttribute('aria-selected', 'true');
+
+    await page.getByRole('tab', { name: 'Evals', exact: true }).click();
+    await expect(page).toHaveURL(/\/agents\/test-agent\/evaluate/);
+    await expect(page.getByRole('tab', { name: 'Evals', exact: true })).toHaveAttribute('aria-selected', 'true');
+
+    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
+    await expect(page).toHaveURL('/agents/test-agent/threads/new');
+    await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
   });
 
   test('approval agent triggers tool approval flow', async ({ page }) => {
@@ -254,13 +275,16 @@ test.describe('Agent Chat', () => {
     await expect(toolBadge.first()).toContainText('"greeting": "Hello, John!"', { timeout: 30_000 });
   });
 
-  test('agent overview shows correct tools list', async ({ page }) => {
-    await page.goto('/agents/test-agent/overview');
+  test('agent config panel shows correct tools list', async ({ page }) => {
+    await page.goto('/agents/test-agent/threads/new');
+    let config = await openAgentConfigPanel(page);
+    await expect(config.getByRole('heading', { name: 'Tools 2', level: 3 })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'calculator', exact: true })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'string-transform', exact: true })).toBeVisible();
 
-    await expect(page.getByRole('link', { name: 'calculator' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'string-transform' })).toBeVisible();
-
-    await page.goto('/agents/approval-agent/overview');
-    await expect(page.getByRole('link', { name: 'needs-approval' })).toBeVisible();
+    await page.goto('/agents/approval-agent/threads/new');
+    config = await openAgentConfigPanel(page);
+    await expect(config.getByRole('heading', { name: 'Tools 1', level: 3 })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'needs-approval', exact: true })).toBeVisible();
   });
 });

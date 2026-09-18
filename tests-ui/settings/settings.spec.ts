@@ -16,8 +16,8 @@ test.describe('Settings', () => {
     const prefixInput = page.getByPlaceholder('e.g: /api (default)');
     await expect(prefixInput).toBeVisible();
 
-    // Headers section with add button
-    await expect(page.getByRole('heading', { name: 'Headers' })).toBeVisible();
+    // Headers field (label + empty state) with add button
+    await expect(page.getByText('Headers', { exact: true })).toBeVisible();
     await expect(page.getByText('No header yet')).toBeVisible();
     const addHeaderBtn = page.getByRole('button', { name: 'Add Header' });
     await expect(addHeaderBtn).toBeVisible();

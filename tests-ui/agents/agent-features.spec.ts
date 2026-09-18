@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { fillAndSend, waitForAssistantMessage } from '../helpers';
+import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage } from '../helpers';
 
 /**
  * Open the Model settings popover dialog. Studio moved model settings from a
@@ -71,12 +71,12 @@ test.describe('Agent Features', () => {
     const agentSpan = traceView.getByRole('button', { name: "agent run: 'test-agent'", exact: true });
     await expect(agentSpan).toBeVisible();
     await agentSpan.click();
-    await expect(page.getByRole('heading', { name: /^Span #/, level: 3 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();
     const threadId = new URL(page.url()).pathname.split('/')[4];
     await expect(page.getByRole('textbox').filter({ hasText: '"threadId"' })).toContainText(threadId);
     await expect(page.getByRole('textbox').filter({ hasText: '"contents"' })).toContainText('Say hello and nothing else.');
     await page.getByRole('button', { name: 'Close Panel', exact: true }).click();
-    await expect(page.getByRole('heading', { name: /^Span #/, level: 3 })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).not.toBeVisible();
 
     await showTraces.click();
     await expect(showTraces).not.toBeChecked();
@@ -131,15 +131,17 @@ test.describe('Agent Features', () => {
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Helper Agent');
   });
 
-  test('network-agent overview shows sub-agents section', async ({ page }) => {
-    await page.goto('/agents/network-agent/overview');
+  test('network-agent config panel shows sub-agents section', async ({ page }) => {
+    await page.goto('/agents/network-agent/threads/new');
 
-    await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Helper Agent' })).toBeVisible();
+    const config = await openAgentConfigPanel(page);
+    await expect(config.getByRole('heading', { name: 'Agents 1', level: 3 })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'Helper Agent', exact: true })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Helper Agent' }).click();
-    await expect(page).toHaveURL(/\/agents\/helper-agent\/overview/);
-    await expect(page.getByTestId('agent-settings-view')).toBeVisible();
+    await config.getByRole('link', { name: 'Helper Agent', exact: true }).click();
+    await expect(page).toHaveURL(/\/agents\/helper-agent\//);
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch agent' }))
+      .toHaveText('Helper Agent');
   });
 
   test('agents list shows all agents with correct attached entities', async ({ page }) => {
@@ -195,18 +197,19 @@ test.describe('Agent Features', () => {
 
     // Studio no longer renders the delegated response inside the agent badge;
     // verify the result where it is surfaced in the final assistant message.
+    // The last message is the streaming sub-agent call until the helper returns,
+    // so give the live `.last()` locator the full LLM budget to settle on the
+    // final text message.
     const assistantMsg = await waitForAssistantMessage(page);
-    await expect(assistantMsg).toBeVisible({ timeout: 30_000 });
-    await expect(assistantMsg).toContainText(/mango/i);
+    await expect(assistantMsg).toContainText(/mango/i, { timeout: 30_000 });
   });
 
   test('workflow-agent triggers workflow and workflow badge renders in chat', async ({ page }) => {
-    // Verify the dedicated overview shows the attached workflow.
-    await page.goto('/agents/workflow-agent/overview');
-    await expect(page.getByRole('link', { name: 'sequential-steps' })).toBeVisible();
-
-    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
-    await expect(page).toHaveURL('/agents/workflow-agent/threads/new');
+    // Verify the config panel shows the attached workflow.
+    await page.goto('/agents/workflow-agent/threads/new');
+    const config = await openAgentConfigPanel(page);
+    await expect(config.getByRole('heading', { name: 'Workflows 1', level: 3 })).toBeVisible();
+    await expect(config.getByRole('link', { name: 'sequential-steps', exact: true })).toBeVisible();
 
     // Send a message that triggers the workflow
     await fillAndSend(page, 'Greet someone named Alice');
