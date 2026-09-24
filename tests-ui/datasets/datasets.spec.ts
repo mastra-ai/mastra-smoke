@@ -1,7 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 
 async function expectDatasetLoaded(page: Page, datasetName: string) {
-  await expect(page.getByRole('heading', { name: 'Dataset', level: 1, exact: true })).toBeVisible({ timeout: 10_000 });
+  // The page-layout shell (mastra-ai/mastra#24643) gives every detail page an
+  // sr-only h1 of the entity id; the visible title is the breadcrumb switcher.
+  const datasetId = new URL(page.url()).pathname.split('/')[2];
+  await expect(page.getByRole('main').getByRole('heading', { name: datasetId, level: 1, exact: true })).toBeAttached({ timeout: 10_000 });
   // The current breadcrumb crumb is a "Switch dataset" combobox labelled with the
   // dataset name (Studio unified crumbs: current = label + switcher, not a link).
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch dataset' }))
@@ -474,7 +477,9 @@ test.describe('Datasets', () => {
     // Verify the target is shown as Completeness Scorer.
     await expect(page.getByRole('link', { name: 'Completeness Scorer' })).toBeVisible();
 
-    await expect(page.getByRole('heading', { name: 'Experiment', level: 1, exact: true })).toBeVisible();
+    // Detail pages title themselves with the entity id (page-layout shell, mastra-ai/mastra#24643).
+    const experimentId = new URL(page.url()).pathname.split('/').pop()!;
+    await expect(page.getByRole('main').getByRole('heading', { name: experimentId, level: 1, exact: true })).toBeAttached();
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(experimentName);
     // Each result row renders the first 8 chars of the dataset item ID
     for (const itemId of itemIds) {

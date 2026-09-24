@@ -19,9 +19,19 @@ describe('observability — discovery endpoints', () => {
     await generateAgent('test-agent', {
       messages: [{ role: 'user', content: 'discovery seed' }],
     });
-    // Give the exporter a beat to flush spans/metrics.
-    await new Promise((r) => setTimeout(r, 500));
-  });
+    // The exporter flushes asynchronously; a fixed sleep raced it on slow CI
+    // runners. Wait until the seeded agent span and its metrics are queryable.
+    const deadline = Date.now() + 20_000;
+    for (;;) {
+      const [types, metrics] = await Promise.all([
+        fetchJson<{ entityTypes: string[] }>('/api/observability/discovery/entity-types'),
+        fetchJson<{ names: string[] }>('/api/observability/discovery/metric-names'),
+      ]);
+      if ((types.data.entityTypes ?? []).includes('agent') && (metrics.data.names ?? []).length > 0) break;
+      if (Date.now() > deadline) throw new Error('seeded agent telemetry never became queryable via discovery endpoints');
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }, 60_000);
 
   it('GET /api/observability/discovery/environments returns a string[]', async () => {
     const { status, data } = await fetchJson<{ environments: string[] }>(

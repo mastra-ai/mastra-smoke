@@ -21,7 +21,6 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | MCP Servers            | 3    | 0    | 0       |       |
 | Observability          | 6    | 0    | 0       |       |
 | Observability Overview | 1    | 0    | 0       | NEW — `/observability-overview` hub: heading + Metrics/Traces link cards |
-| Evaluation Dashboard   | 1    | 0    | 0       | `/evaluation` Overview heading + Scores, Dataset Coverage by Target, Experiments by Dataset, and Review Pipeline sections |
 | Memory                 | 4    | 0    | 0       |       |
 | Datasets               | 11   | 0    | 0       |       |
 | Scorers                | 2    | 0    | 0       |       |
@@ -31,13 +30,13 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | CMS — Agents           | 1    | 0    | 0       | `/cms/agents/create` Identity step + disabled "Create agent" submit. Conditionally skips if the page 5xx's. |
 | CMS — Scorers          | 1    | 0    | 0       | `/cms/scorers/create` Configuration + Score Range + Instructions. Conditionally skips if the page 5xx's. |
 | Schedules              | 1    | 0    | 0       | NEW — `/workflows/schedules` heading |
-| Logs                   | 1    | 0    | 0       | NEW — `/logs` heading + "Last 24 hours" + "Add Filter" controls |
+| Logs                   | 1    | 0    | 0       | `/logs` heading + "Last 24 hours" + "Add Filter" controls + the fixture's intentional-failure error row |
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
 | Settings               | 2    | 0    | 0       |       |
 | Request Context        | 2    | 0    | 0       |       |
-| **Total**              | **89** | **2** | **1** |       |
+| **Total**              | **88** | **2** | **1** |       |
 
-> Run count from `pnpm test:ui`: 91 tests (including global setup). See route map in App.tsx for the full Studio surface.
+> Run count from `pnpm test:ui`: 90 tests (including global setup). See route map in App.tsx for the full Studio surface.
 
 ---
 
@@ -143,7 +142,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
 | 1 | MCP servers list page shows registered servers | ✅  |
-| 2 | MCP server detail shows available tools     | ✅     |
+| 2 | MCP server detail: Connect card (HTTP/CLI tabs only — no SSE for MCP 2.x), HTTP endpoint URL, available tools | ✅     |
 | 3 | Execute MCP tool from UI                    | ✅     |
 
 ### ✅ Observability — `tests-ui/observability/traces.spec.ts` (6/6)

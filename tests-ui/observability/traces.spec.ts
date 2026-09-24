@@ -4,6 +4,7 @@ import { fillAndSend, waitForAssistantMessage } from '../helpers';
 /**
  * Locate non-skeleton trace entries in the observability list.
  * Trace entries are <button class="data-list-row"> elements inside a grid container.
+ * Each row has a Type cell ("Agent", "Workflow", "Scorer") and the root entity name.
  */
 function traceEntries(page: Page) {
   return page.locator('button.data-list-row');
@@ -76,6 +77,7 @@ test.describe('Observability', () => {
     // Add filter is a two-step combobox: pick the field, then its value.
     await page.getByRole('combobox', { name: 'Add filter' }).click();
     await page.getByRole('option', { name: 'Primitive Type' }).click();
+    await page.getByRole('option', { name: 'is', exact: true }).click();
     await page.getByRole('option', { name: 'Workflow', exact: true }).click();
 
     // The active filter is rendered as a chip and reflected in the URL.
@@ -85,8 +87,8 @@ test.describe('Observability', () => {
 
     // Only workflow traces remain.
     await expect(traceEntries(page).first()).toBeVisible({ timeout: 10_000 });
-    await expect(traceEntries(page).filter({ hasText: 'agent run' })).toHaveCount(0);
-    await expect(traceEntries(page).filter({ hasText: 'workflow run' }).first()).toBeVisible();
+    await expect(traceEntries(page).filter({ hasText: /Agent/ })).toHaveCount(0);
+    await expect(traceEntries(page).filter({ hasText: /Workflow/ }).first()).toBeVisible();
   });
 
   test('click trace to open detail panel', async ({ page }) => {
@@ -94,7 +96,7 @@ test.describe('Observability', () => {
 
     // Open a workflow trace (the newest entry may be an agent trace, whose
     // spans are named differently).
-    const workflowTrace = traceEntries(page).filter({ hasText: 'workflow run' }).first();
+    const workflowTrace = traceEntries(page).filter({ hasText: /Workflow/ }).first();
     await expect(workflowTrace).toBeVisible({ timeout: 10_000 });
     await workflowTrace.click();
 

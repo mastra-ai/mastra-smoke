@@ -36,10 +36,10 @@ test.describe('Scorers', () => {
     // URL segment is the scorer ID, not the human-readable name
     await page.goto('/scorers/completeness');
 
-    // The page heading is the generic "Scorer"; the human-readable scorer
-    // name lives in the breadcrumb combobox at the top of the page.
-    await expect(page.getByRole('heading', { name: 'Scorer', level: 1 })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('combobox').filter({ hasText: 'Completeness Scorer' })).toBeVisible();
+    // The page heading is the scorer id (page-layout shell, mastra-ai/mastra#24643);
+    // the human-readable name lives in the breadcrumb switcher.
+    await expect(page.getByRole('heading', { name: 'completeness', level: 1, exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('combobox', { name: 'Switch scorer' })).toHaveText('Completeness Scorer');
 
     // A score row referencing the scored workflow should be visible
     const scoreRow = page.getByRole('button').filter({ hasText: 'scored-workflow' }).first();
