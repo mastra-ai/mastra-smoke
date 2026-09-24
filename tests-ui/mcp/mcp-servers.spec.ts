@@ -29,10 +29,14 @@ test.describe('MCP Servers', () => {
     // Server heading
     await expect(page.locator('h1')).toHaveText('Test MCP Server');
 
-    // Transport method copy buttons
+    // Connect card (mastra-ai/mastra#24817): one tab per transport. @mastra/mcp 2.x
+    // servers speak Streamable HTTP only, so there is no SSE tab.
+    await expect(page.getByText('This MCP server speaks Streamable HTTP only (protocol 2026-07-28).')).toBeVisible();
+    await expect(page.getByRole('tab')).toHaveText(['HTTP', 'CLI']);
+    await expect(page.getByRole('tabpanel', { name: 'HTTP' })).toContainText(/\/api\/mcp\/test-mcp\/mcp$/);
     await expect(page.getByRole('button', { name: 'Copy HTTP Stream URL' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Copy SSE URL' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Copy Command Line Config' })).toBeVisible();
+    await page.getByRole('tab', { name: 'CLI' }).click();
+    await expect(page.getByRole('tabpanel', { name: 'CLI' }).getByRole('button', { name: /^Copy / })).toBeVisible();
 
     // Available tools section
     await expect(page.getByRole('heading', { name: 'Available Tools' })).toBeVisible();

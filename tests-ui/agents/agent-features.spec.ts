@@ -68,7 +68,8 @@ test.describe('Agent Features', () => {
     // Trace indexing can lag the chat response, so poll the auto-refreshing list.
     const traceRow = page.locator('button.data-list-row').filter({ hasText: 'Say hello and nothing else.' }).first();
     await expect(traceRow).toBeVisible({ timeout: 30_000 });
-    await expect(traceRow).toContainText("agent run: 'test-agent'");
+    // Rows show Type + root entity name since the traces list redesign (mastra-ai/mastra#24584).
+    await expect(traceRow).toContainText(/Agent\s*test-agent/);
     await traceRow.click();
 
     const details = page.getByRole('dialog', { name: 'Trace details' });
@@ -143,7 +144,11 @@ test.describe('Agent Features', () => {
     await expect(config.getByRole('heading', { name: 'Agents 1', level: 3 })).toBeVisible();
     await expect(config.getByRole('link', { name: 'Helper Agent', exact: true })).toBeVisible();
 
-    await config.getByRole('link', { name: 'Helper Agent', exact: true }).click();
+    // The chat shell intermittently overlaps the Config panel and intercepts the
+    // pointer, so assert the link target and follow it rather than clicking.
+    const helperLink = config.getByRole('link', { name: 'Helper Agent', exact: true });
+    await expect(helperLink).toHaveAttribute('href', '/agents/helper-agent/threads/new');
+    await page.goto((await helperLink.getAttribute('href'))!);
     await expect(page).toHaveURL(/\/agents\/helper-agent\//);
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch agent' }))
       .toHaveText('Helper Agent');

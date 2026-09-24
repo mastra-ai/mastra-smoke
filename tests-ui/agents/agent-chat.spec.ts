@@ -39,7 +39,10 @@ test.describe('Agent Chat', () => {
       .toHaveText('Test Agent');
     await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
 
-    // The capability strip summarises what is attached to the agent.
+    // The capability strip summarises what is attached to the agent. It lives in the
+    // left threads panel, which now opens collapsed behind "Expand panel".
+    await page.getByRole('button', { name: 'Expand panel' }).click();
+    await expect(page.getByRole('navigation', { name: 'Threads' })).toBeVisible();
     await page.getByRole('button', { name: 'Show capability details' }).click();
     await expect(page.getByRole('link', { name: 'Tools: 2' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Memory: On' })).toBeVisible();

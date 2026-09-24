@@ -32,7 +32,8 @@ test.describe('Logs', () => {
 
     // We should see at least one real log row with concrete content from the fixture
     // (e.g. a workflow error or a "no memory configured" warning from agent runs).
-    const logRow = page.getByRole('button', { name: /ERROR|WARN/ }).first();
+    // Levels render as lowercase badges since the log-drawer redesign (mastra-ai/mastra#24945).
+    const logRow = page.getByRole('button', { name: /\berror\b.*Intentional failure for smoke test/ }).first();
     await expect(logRow).toBeVisible({ timeout: 20_000 });
 
     expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
