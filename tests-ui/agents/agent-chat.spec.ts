@@ -3,7 +3,10 @@ import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage } from '../h
 
 /** Wait for the agent's thread navigation, not the global app sidebar. */
 async function waitForThreadSidebar(page: Page) {
-  await expect(page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Chat' })).toBeVisible({ timeout: 10_000 });
+  // The threads panel starts collapsed on a fresh agent page and auto-expands once a thread exists.
+  const expand = page.getByRole('button', { name: 'Expand panel' });
+  if (await expand.isVisible()) await expand.click();
+  await expect(page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 /**
@@ -150,8 +153,9 @@ test.describe('Agent Chat', () => {
     await fillAndSend(page, 'Hi');
     await expect(page).toHaveURL(/\/threads\/(?!new)/, { timeout: 45_000 });
 
-    // Now click New Chat and verify we get a fresh thread
-    const newChatLink = page.getByRole('link', { name: 'New Chat' });
+    // Now click New Thread (renamed from "New Chat") and verify we get a fresh thread
+    await waitForThreadSidebar(page);
+    const newChatLink = page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true });
     await expect(newChatLink).toBeVisible();
     await newChatLink.click();
     await expect(page).toHaveURL(/\/threads\/new/);
@@ -191,7 +195,8 @@ test.describe('Agent Chat', () => {
     const firstThreadUrl = page.url();
 
     // Start a new chat to create a second context
-    await page.getByRole('link', { name: 'New Chat' }).click();
+    await waitForThreadSidebar(page);
+    await page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true }).click();
     await expect(page).toHaveURL(/\/threads\/new/);
 
     // Expand the thread sidebar if collapsed
