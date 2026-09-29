@@ -3,8 +3,10 @@ import { fillAndSend, waitForAssistantMessage } from '../helpers';
 
 /** Wait for the agent's thread navigation to load. */
 async function waitForThreadSidebar(page: Page) {
-  await expect(page.getByRole('link', { name: 'New Chat' })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole('navigation', { name: 'Threads', exact: true })).toBeVisible({ timeout: 10_000 });
+  // The threads panel starts collapsed on a fresh agent page and auto-expands once a thread exists.
+  const expand = page.getByRole('button', { name: 'Expand panel' });
+  if (await expand.isVisible()) await expand.click();
+  await expect(page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Memory & Threads', () => {
@@ -66,19 +68,14 @@ test.describe('Memory & Threads', () => {
     // Find the <li> row that contains this thread's link, then its delete button.
     // Use page.locator for the inner selector so filter({ has }) scopes correctly.
     const threadRow = leftPanel.locator('li').filter({ has: page.locator(`a[href="${threadPath}"]`) });
-    // Hover the row to reveal the delete button (it's hidden until hover)
-    await threadRow.hover();
-    const deleteButton = threadRow.getByRole('button', { name: 'delete thread', exact: true });
-    await deleteButton.click();
+    // Delete now lives in the per-row "Thread actions" menu (Pin / Rename / Delete).
+    await threadRow.getByRole('button', { name: 'Thread actions', exact: true }).click();
+    await page.getByRole('menu', { name: 'Thread actions' }).getByRole('menuitem', { name: 'Delete', exact: true }).click();
 
-    // Confirmation dialog should appear
-    await expect(page.getByText('Are you absolutely sure?')).toBeVisible({ timeout: 5_000 });
-    await expect(
-      page.getByText('This action cannot be undone.'),
-    ).toBeVisible();
-
-    // Click "Continue" to confirm deletion
-    await page.getByRole('button', { name: 'Continue' }).click();
+    const confirm = page.getByRole('alertdialog', { name: 'Are you absolutely sure?' });
+    await expect(confirm).toBeVisible({ timeout: 5_000 });
+    await expect(confirm.getByText(/This action cannot be undone\./)).toBeVisible();
+    await confirm.getByRole('button', { name: 'Continue' }).click();
 
     // The specific thread entry should disappear from the sidebar
     await expect(threadLink).not.toBeVisible({ timeout: 10_000 });
@@ -146,8 +143,8 @@ test.describe('Memory & Threads', () => {
     await expect(editButton).toBeEnabled({ timeout: 10_000 });
     await editButton.click();
 
-    // The working memory textarea (distinct from the chat input) should appear
-    const wmTextarea = page.getByPlaceholder('Enter working memory content...');
+    // The editor is now a contenteditable code editor labelled "Working memory content".
+    const wmTextarea = page.getByRole('textbox', { name: 'Working memory content' });
     await expect(wmTextarea).toBeVisible({ timeout: 5_000 });
 
     // Save and Cancel buttons should be visible. Scope to the memory overlay: the

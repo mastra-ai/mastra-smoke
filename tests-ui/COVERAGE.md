@@ -85,7 +85,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | 2 | Send message and receive streamed response  | ✅     |
 | 3 | Send message with generate mode             | ✅     |
 | 4 | Model settings persist after reload (per-thread preferences) | ✅     |
-| 5 | New chat button navigates to fresh thread   | ✅     |
+| 5 | New Thread button navigates to fresh thread | ✅     |
 | 6 | Threads navigation lists the exact newly created conversation | ✅     |
 | 7 | Click previous thread to reload it          | ✅     |
 | 8 | Tool call displayed in chat message         | ✅     |
@@ -221,7 +221,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 
 |   | Test                                            | Status |
 |---|--------------------------------------------------|--------|
-| 1 | Request context page displays editor and saves JSON | ✅     |
+| 1 | Agent request-context popover saves JSON per agent and persists across reloads | ✅     |
 | 2 | Request context is included in agent chat and cleared to empty after removal | ✅     |
 
 ### Settings — `tests-ui/settings/` (2/2)

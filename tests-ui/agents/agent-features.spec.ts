@@ -68,8 +68,8 @@ test.describe('Agent Features', () => {
     // Trace indexing can lag the chat response, so poll the auto-refreshing list.
     const traceRow = page.locator('button.data-list-row').filter({ hasText: 'Say hello and nothing else.' }).first();
     await expect(traceRow).toBeVisible({ timeout: 30_000 });
-    // Rows show Type + root entity name since the traces list redesign (mastra-ai/mastra#24584).
-    await expect(traceRow).toContainText(/Agent\s*test-agent/);
+    // Rows show Type + the root entity's display name (mastra-ai/mastra#25306).
+    await expect(traceRow).toContainText(/Agent\s*Test Agent/);
     await traceRow.click();
 
     const details = page.getByRole('dialog', { name: 'Trace details' });
