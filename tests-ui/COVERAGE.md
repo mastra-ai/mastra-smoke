@@ -200,11 +200,11 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 
 |   | Test                                                    | Status |
 |---|---------------------------------------------------------|--------|
-| 1 | Workspace page shows file browser with workspace name   | ✅     |
-| 2 | File browser: navigate into directory, view file, close | ✅     |
-| 3 | File browser: create and delete directory               | ✅     |
-| 4 | Skills tab: shows empty state with add skill button     | ✅     |
-| 5 | Skills tab: install skill from registry and remove it   | ✅     |
+| 1 | Workspace page shows file tree, skill count and workspace name | ✅     |
+| 2 | File tree: expand directories and view files               | ✅     |
+| 3 | File tree: create (New folder dialog) and delete directory  | ✅     |
+| 4 | Add skill dialog lists registry skills and previews before Install | ✅     |
+| 5 | Install skill from registry, find it in the tree, remove via folder delete | ✅     |
 | 6 | Search: BM25 keyword search                             | ⬜     |
 | 7 | Search: vector/semantic search                          | ⬜     |
 

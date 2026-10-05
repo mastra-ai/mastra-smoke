@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 test.describe('Workspaces', () => {
   // Seed fixture files via the workspace filesystem API before tests
@@ -38,104 +38,109 @@ test.describe('Workspaces', () => {
     );
   });
 
-  // Helper: locate a file/directory entry button (not the Delete button).
-  // Each list item has two buttons: the entry button and "Delete <name>".
-  // We scope to the listitem containing the target text, then pick the first button.
-  function fileEntry(page: import('@playwright/test').Page, name: string | RegExp) {
-    if (typeof name === 'string') {
-      return page.getByRole('button', { name, exact: true });
-    }
-    // For regex, scope to the listitem to avoid matching "Delete ..." buttons
-    return page.getByRole('listitem').filter({ hasText: name }).getByRole('button').first();
+  // Files and skills share one tree (role=tree). Directories are treeitems whose
+  // toggle is a button named after the folder; files are clickable treeitems
+  // whose accessible name starts with the file name (followed by size + "Delete …").
+  function folder(page: Page, name: string) {
+    return page.getByRole('tree').getByRole('button', { name, exact: true });
+  }
+  function file(page: Page, name: string) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return page.getByRole('treeitem', { name: new RegExp(`^${escaped} `) });
+  }
+  // "Files · N Skills" summary above the tree.
+  function summary(page: Page) {
+    return page.getByRole('main').getByText(/^Files.*Skills?$/);
   }
 
-  test('workspace page shows file browser with workspace name', async ({ page }) => {
+  test('workspace page shows file tree with workspace name', async ({ page }) => {
     await page.goto('/workspaces');
-    await expect(page.getByRole('heading', { name: 'Workspace', level: 1 }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Workspaces', level: 1 })).toBeVisible();
     await expect(page.getByText('Test Workspace')).toBeVisible();
 
-    // Files tab should be active by default
-    await expect(page.getByRole('tab', { name: 'Files' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: /Skills/ })).toBeVisible();
+    // Single tree view replaced the Files/Skills tabs; no skills installed yet.
+    await expect(summary(page)).toHaveText(/0 Skills/);
+    await expect(page.getByRole('button', { name: 'New folder', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add skill', exact: true })).toBeVisible();
 
-    // Toolbar buttons
-    await expect(page.getByRole('button', { name: 'Refresh files' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create directory' })).toBeVisible();
-
-    // Our fixture directory should appear in the file list
-    await expect(fileEntry(page, 'smoke-fixtures')).toBeVisible();
+    // Our fixture directory should appear in the tree, with its folder actions.
+    await expect(folder(page, 'smoke-fixtures')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Delete smoke-fixtures' })).toBeVisible();
   });
 
-  test('file browser: navigate into directory, view file, and close viewer', async ({ page }) => {
+  test('file tree: expand directories and view files', async ({ page }) => {
     await page.goto('/workspaces');
 
-    // Navigate into smoke-fixtures directory
-    await fileEntry(page, 'smoke-fixtures').click();
+    await folder(page, 'smoke-fixtures').click();
+    await expect(folder(page, 'smoke-fixtures')).toHaveAttribute('aria-expanded', 'true');
+    await expect(file(page, 'hello.txt')).toBeVisible();
+    await expect(file(page, 'config.json')).toBeVisible();
+    await expect(folder(page, 'nested')).toBeVisible();
 
-    // Should show fixture files
-    await expect(fileEntry(page, /hello\.txt/i)).toBeVisible();
-    await expect(fileEntry(page, /config\.json/i)).toBeVisible();
-    await expect(fileEntry(page, 'nested')).toBeVisible();
+    // Selecting a file shows its path and content in the viewer pane.
+    await file(page, 'hello.txt').click();
+    await expect(file(page, 'hello.txt')).toHaveAttribute('aria-selected', 'true');
+    const viewer = page.getByRole('main').getByRole('figure');
+    await expect(page.getByRole('main').getByText('smoke-fixtures/hello.txt', { exact: true })).toBeVisible();
+    await expect(viewer).toContainText('Hello from smoke test');
+    await expect(viewer.getByRole('button', { name: 'Copy to clipboard' })).toBeVisible();
 
-    // Click a file to open the file viewer
-    await fileEntry(page, /hello\.txt/i).click();
-
-    // File viewer should appear with the file content
-    await expect(page.getByText('Hello from smoke test')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Copy to clipboard' })).toBeVisible();
-
-    // Close the file viewer
-    await page.getByRole('button', { name: 'Close' }).click();
-    await expect(page.getByText('Hello from smoke test')).not.toBeVisible();
-
-    // Navigate deeper into nested/
-    await fileEntry(page, 'nested').click();
-    await expect(fileEntry(page, /deep\.md/i)).toBeVisible();
-
-    // View the markdown file
-    await fileEntry(page, /deep\.md/i).click();
+    // Opening another file replaces the viewer content.
+    await folder(page, 'nested').click();
+    await expect(file(page, 'deep.md')).toBeVisible();
+    await file(page, 'deep.md').click();
     await expect(page.getByText('Nested content here.')).toBeVisible();
+    await expect(page.getByText('Hello from smoke test')).toHaveCount(0);
   });
 
-  test('file browser: create and delete directory', async ({ page }) => {
+  test('file tree: create and delete directory', async ({ page }) => {
     await page.goto('/workspaces');
 
-    // Handle the native prompt dialog for directory creation
-    page.on('dialog', async dialog => {
-      expect(dialog.type()).toBe('prompt');
-      await dialog.accept('e2e-temp-dir');
-    });
+    // "New folder" is an in-app dialog now (previously a native prompt).
+    await page.getByRole('button', { name: 'New folder', exact: true }).click();
+    const newFolder = page.getByRole('dialog', { name: 'New folder' });
+    await expect(newFolder.getByRole('button', { name: 'Create' })).toBeDisabled();
+    await newFolder.getByRole('textbox', { name: 'Folder path' }).fill('e2e-temp-dir');
+    await newFolder.getByRole('button', { name: 'Create' }).click();
+    await expect(newFolder).not.toBeVisible();
 
-    await page.getByRole('button', { name: 'Create directory' }).click();
+    await expect(folder(page, 'e2e-temp-dir')).toBeVisible({ timeout: 5_000 });
 
-    // Wait for the new directory to appear
-    await expect(fileEntry(page, 'e2e-temp-dir')).toBeVisible({ timeout: 5_000 });
-
-    // Delete it via the UI delete button
     await page.getByRole('button', { name: 'Delete e2e-temp-dir' }).click();
-
-    // Confirm deletion in alert dialog
-    const alertDialog = page.getByRole('alertdialog');
-    await expect(alertDialog).toBeVisible();
-    await expect(alertDialog.getByText('e2e-temp-dir')).toBeVisible();
+    const alertDialog = page.getByRole('alertdialog', { name: 'Delete folder?' });
+    await expect(alertDialog).toContainText('"e2e-temp-dir"');
     await alertDialog.getByRole('button', { name: 'Delete' }).click();
 
-    // Directory should disappear
-    await expect(fileEntry(page, 'e2e-temp-dir')).toHaveCount(0, { timeout: 5_000 });
+    await expect(folder(page, 'e2e-temp-dir')).toHaveCount(0, { timeout: 5_000 });
+    await expect(folder(page, 'smoke-fixtures')).toBeVisible();
   });
 
-  test('skills tab: shows empty state with add skill button', async ({ page }) => {
+  test('add skill dialog lists registry skills', async ({ page }) => {
+    await page.route('**/api/workspaces/*/skills-sh/popular*', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          skills: [{ id: 'fixture-1', name: 'find-skills', installs: 100, topSource: 'vercel-labs/skills' }],
+          count: 1,
+          limit: 10,
+          offset: 0,
+        }),
+      }),
+    );
     await page.goto('/workspaces');
+    await page.getByRole('button', { name: 'Add skill', exact: true }).click();
 
-    // Switch to Skills tab
-    await page.getByRole('tab', { name: /Skills/ }).click();
-
-    // Should show Add Skill button
-    await expect(page.getByRole('button', { name: 'Add Skill' })).toBeVisible();
-
-    // Empty-state message should be visible
-    await expect(page.getByText(/no skills discovered/i)).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Add Skill' });
+    await expect(dialog.getByRole('searchbox', { name: 'Search skills' })).toBeVisible();
+    await expect(dialog.getByText('Popular Skills')).toBeVisible();
+    const skill = dialog.getByRole('button', { name: /^find-skills vercel-labs\/skills/ });
+    await expect(skill).toBeVisible();
+    // Install appears only once a skill is selected for preview.
+    await expect(dialog.getByRole('button', { name: 'Install' })).toHaveCount(0);
+    await skill.click();
+    await expect(dialog.getByRole('heading', { name: 'find-skills', level: 3 })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Install' })).toBeVisible();
   });
 
   test('skills tab: install skill from registry and remove it', async ({ page, request }) => {
@@ -180,52 +185,42 @@ test.describe('Workspaces', () => {
     );
 
     await page.goto('/workspaces');
-    await page.getByRole('tab', { name: /Skills/ }).click();
+    await expect(summary(page)).toHaveText(/0 Skills/);
 
-    // Open Add Skill dialog
-    await page.getByRole('button', { name: 'Add Skill' }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog.getByText('Add Skill')).toBeVisible();
+    await page.getByRole('button', { name: 'Add skill', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add Skill' });
 
-    // Popular list should show our fixture skill
-    await expect(dialog.getByText('Popular Skills')).toBeVisible();
-    const skillButton = dialog.getByRole('button', { name: new RegExp(SKILL_NAME, 'i') }).first();
+    const skillButton = dialog.getByRole('button', { name: new RegExp(`^${SKILL_NAME} `) });
     await expect(skillButton).toBeVisible({ timeout: 5_000 });
     await skillButton.click();
 
-    // Preview panel should show the skill name
-    await expect(dialog.locator('h3').filter({ hasText: SKILL_NAME })).toBeVisible({ timeout: 10_000 });
+    // Preview panel should show the skill name and our mocked content
+    await expect(dialog.getByRole('heading', { name: SKILL_NAME, level: 3 })).toBeVisible({ timeout: 10_000 });
+    await expect(dialog.getByText('A test skill fixture for the smoke suite.')).toBeVisible();
 
-    // Click Install
+    // Install hits the real server + skills.sh files API
     await dialog.getByTestId('install-skill-button').click();
-
-    // Wait for success toast
     await expect(page.getByText(/installed successfully/i)).toBeVisible({ timeout: 20_000 });
-
-    // Dialog should close and the skill should appear in the skills table.
-    // Studio renders each skill row as a button (containing the name + path +
-    // description) followed by sibling Update/Remove buttons — not as a <li>.
-    // Scope to the Skills tabpanel to avoid matching toast notifications.
     await expect(dialog).not.toBeVisible();
-    const skillsTab = page.getByRole('tabpanel', { name: /Skills/ });
-    const skillRow = skillsTab.getByRole('button', { name: new RegExp(`^${SKILL_NAME}\\b`) });
-    await expect(skillRow).toBeVisible({ timeout: 5_000 });
-    await expect(skillRow).toContainText(`.agents/skills/${SKILL_NAME}`);
 
-    // Now remove the skill — target the dedicated Remove button by accessible name
-    await skillsTab.getByRole('button', { name: `Remove ${SKILL_NAME}` }).click();
+    // Installed skills show up in the tree under .agents/skills/<name> and in the count.
+    await expect(summary(page)).toHaveText(/1 Skill\b/);
+    await folder(page, '.agents').click();
+    await folder(page, 'skills').click();
+    await folder(page, SKILL_NAME).click();
+    await expect(file(page, 'SKILL.md')).toBeVisible();
+    await file(page, 'SKILL.md').click();
+    await expect(page.getByRole('main').getByText(`.agents/skills/${SKILL_NAME}/SKILL.md`, { exact: true })).toBeVisible();
 
-    // Confirm in alert dialog
-    const alertDialog = page.getByRole('alertdialog');
-    await expect(alertDialog).toBeVisible();
-    await expect(alertDialog.getByText(SKILL_NAME)).toBeVisible();
-    await alertDialog.getByRole('button', { name: 'Remove' }).click();
+    // The skills table (with "Remove <skill>") is gone; removing a skill means
+    // deleting its folder from the tree.
+    await page.getByRole('button', { name: `Delete ${SKILL_NAME}`, exact: true }).click();
+    const alertDialog = page.getByRole('alertdialog', { name: 'Delete folder?' });
+    await expect(alertDialog).toContainText(SKILL_NAME);
+    await alertDialog.getByRole('button', { name: 'Delete' }).click();
 
-    // Wait for removal success toast
-    await expect(page.getByText(/removed successfully/i)).toBeVisible({ timeout: 10_000 });
-
-    // Skill row should disappear from the Skills tabpanel
-    await expect(skillRow).toHaveCount(0, { timeout: 5_000 });
+    await expect(folder(page, SKILL_NAME)).toHaveCount(0, { timeout: 5_000 });
+    await expect(summary(page)).toHaveText(/0 Skills/);
 
     // Clean up .agents directory from workspace filesystem (in case of leftover)
     await request.delete(
