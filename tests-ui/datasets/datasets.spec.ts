@@ -449,7 +449,7 @@ test.describe('Datasets', () => {
     // Click "Run Experiment"
     await page.getByRole('button', { name: /Run Experiment/ }).click();
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('heading', { name: 'Run Experiment' })).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Run experiment', exact: true })).toBeVisible();
 
     // Dataset and version selectors precede Target Type in the redesigned dialog.
     await dialog.getByRole('combobox').nth(2).click();
@@ -463,7 +463,7 @@ test.describe('Datasets', () => {
     await expect(runButton).toBeDisabled();
     await expect(dialog.getByText('Missing name', { exact: true })).toBeVisible();
     const experimentName = `Completeness experiment ${Date.now()}`;
-    await dialog.getByRole('textbox', { name: 'Name *', exact: true }).fill(experimentName);
+    await dialog.getByRole('textbox', { name: 'Name (required)', exact: true }).fill(experimentName);
     await expect(runButton).toBeEnabled();
     await runButton.click();
 
