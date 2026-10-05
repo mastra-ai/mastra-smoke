@@ -23,7 +23,8 @@ describe('agent stream', () => {
       expect(textDeltas.length).toBeGreaterThan(0);
 
       const fullText = textDeltas.map((e: any) => e.payload.text).join('');
-      expect(fullText.toLowerCase()).toContain('hello world');
+      // Models vary punctuation ("Hello, world!"); require the phrase, not exact formatting.
+      expect(fullText.toLowerCase()).toMatch(/hello,?\s+world/);
 
       // step-finish should contain usage info
       const stepFinish = events.find((e: any) => e.type === 'step-finish');
