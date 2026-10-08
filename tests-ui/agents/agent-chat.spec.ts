@@ -265,22 +265,22 @@ test.describe('Agent Chat', () => {
     // Ask the agent to greet someone — this should trigger the needs-approval tool
     await fillAndSend(page, 'Please greet John');
 
-    // The tool badge for needs-approval should appear, auto-expanded because of approval metadata.
-    // Scope to the chat thread so we don't match the overview panel's tool badges.
+    // The tool badge for needs-approval should appear, forced open while approval is pending
+    // (ToolApprovalBadge, mastra-ai/mastra#25951). Scope to the chat thread.
     const thread = page.getByTestId('thread-wrapper');
-    const toolBadge = thread.getByTestId('tool-badge');
-    await expect(toolBadge.first()).toBeVisible({ timeout: 30_000 });
-    await expect(toolBadge.first().getByRole('button', { name: 'Needs approval' })).toBeVisible();
+    const toolBadge = thread.getByTestId('tool-badge').first();
+    await expect(toolBadge).toBeVisible({ timeout: 30_000 });
+    await expect(toolBadge).toContainText('Needs approval');
+    await expect(toolBadge.getByRole('status')).toHaveText('Approval required', { timeout: 10_000 });
+    await expect(toolBadge).toContainText('"name": "John"');
 
-    // "Approval required" text should be visible (badge auto-expands for approval tools)
-    await expect(page.getByText('Approval required')).toBeVisible({ timeout: 10_000 });
+    // Approve and Decline buttons are labelled with the tool they act on
+    const approve = toolBadge.getByRole('button', { name: 'Approve needs-approval' });
+    await expect(approve).toBeVisible();
+    await expect(toolBadge.getByRole('button', { name: 'Decline needs-approval' })).toBeVisible();
 
-    // Approve and Decline buttons should be visible
-    await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Decline' })).toBeVisible();
-
-    // Click Approve
-    await page.getByRole('button', { name: 'Approve' }).click();
+    await approve.click();
+    await expect(approve).toBeHidden();
 
     // After approval, the expanded badge should render the greeting result.
     await expect(toolBadge.first()).toContainText('"greeting": "Hello, John!"', { timeout: 30_000 });
