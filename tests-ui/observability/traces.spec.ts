@@ -107,8 +107,8 @@ test.describe('Observability', () => {
     const spanButton = page.getByRole('button', { name: /workflow (run|step):/ });
     await expect(spanButton.first()).toBeVisible();
 
-    // Close the panel
-    await page.getByRole('button', { name: 'Close Panel' }).first().click();
+    // Close the drawer (its close button is now labelled "Close trace").
+    await traceDetails(page).getByRole('button', { name: 'Close trace', exact: true }).click();
     await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).not.toBeVisible();
   });
 
