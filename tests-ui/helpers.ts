@@ -45,3 +45,16 @@ export async function waitForAssistantMessage(page: Page, timeout = 30_000) {
   await expect(assistantMsg).toBeVisible({ timeout });
   return assistantMsg;
 }
+
+/** Wait for the agent's thread navigation, not the global app sidebar. */
+export async function waitForThreadSidebar(page: Page) {
+  // The threads panel can briefly render expanded and then collapse, so retry until it stays open.
+  const newThread = page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true });
+  await expect(async () => {
+    const expand = page.getByRole('button', { name: 'Expand panel' });
+    if (await expand.isVisible()) await expand.click();
+    await expect(newThread).toBeVisible({ timeout: 1_000 });
+    await page.waitForTimeout(500);
+    await expect(newThread).toBeVisible({ timeout: 100 });
+  }).toPass({ timeout: 15_000 });
+}

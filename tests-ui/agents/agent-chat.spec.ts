@@ -1,13 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage } from '../helpers';
-
-/** Wait for the agent's thread navigation, not the global app sidebar. */
-async function waitForThreadSidebar(page: Page) {
-  // The threads panel starts collapsed on a fresh agent page and auto-expands once a thread exists.
-  const expand = page.getByRole('button', { name: 'Expand panel' });
-  if (await expand.isVisible()) await expand.click();
-  await expect(page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true })).toBeVisible({ timeout: 10_000 });
-}
+import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage, waitForThreadSidebar } from '../helpers';
 
 /**
  * Open the Model settings dialog. Studio moved model settings from a right-panel
@@ -44,9 +36,15 @@ test.describe('Agent Chat', () => {
 
     // The capability strip summarises what is attached to the agent. It lives in the
     // left threads panel, which may open collapsed behind "Expand panel" or already expanded.
-    await waitForThreadSidebar(page);
-    await page.getByRole('button', { name: 'Show capability details' }).click();
-    await expect(page.getByRole('link', { name: 'Tools: 2' })).toBeVisible();
+    // On a fresh page the panel renders expanded for a few hundred ms and then
+    // collapses, so expanding and revealing the strip is retried as one unit.
+    await expect(async () => {
+      const expand = page.getByRole('button', { name: 'Expand panel' });
+      if (await expand.isVisible()) await expand.click();
+      const details = page.getByRole('button', { name: 'Show capability details' });
+      if (await details.isVisible()) await details.click({ timeout: 2_000 });
+      await expect(page.getByRole('link', { name: 'Tools: 2' })).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByRole('link', { name: 'Memory: On' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Sub-agents: Off' })).toBeVisible();
 

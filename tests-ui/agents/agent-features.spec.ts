@@ -63,7 +63,12 @@ test.describe('Agent Features', () => {
     // The per-thread "Show thread traces" toggle was removed upstream
     // (mastra-ai/mastra#24274); the agent-scoped Traces tab is the trace surface.
     await page.getByRole('tab', { name: 'Traces', exact: true }).click();
-    await expect(page).toHaveURL(/\/agents\/test-agent\/traces\?rootEntityType=agent&filterEntityId=test-agent/);
+    // Opening Traces from a persisted thread scopes the list to that thread.
+    await expect(page).toHaveURL(url =>
+      url.pathname === '/agents/test-agent/traces' &&
+      url.searchParams.get('filterThreadId') === threadId &&
+      url.searchParams.get('rootEntityType') === 'agent' &&
+      url.searchParams.get('filterEntityId') === 'test-agent');
 
     // Trace indexing can lag the chat response, so poll the auto-refreshing list.
     const traceRow = page.locator('button.data-list-row').filter({ hasText: 'Say hello and nothing else.' }).first();
@@ -83,8 +88,7 @@ test.describe('Agent Features', () => {
     await expect(spanDetails.locator('code').filter({ hasText: '"contents"' })).toContainText('Say hello and nothing else.');
     await expect(spanDetails.locator('code').filter({ hasText: '"threadId"' })).toContainText(threadId);
 
-    // Span panel and trace drawer each have a Close Panel; close the drawer (first).
-    await details.getByRole('button', { name: 'Close Panel', exact: true }).first().click();
+    await details.getByRole('button', { name: 'Close trace', exact: true }).click();
     await expect(details).not.toBeVisible();
     await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(page).toHaveURL(/\/agents\/test-agent\/threads\//);

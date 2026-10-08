@@ -1,13 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
-import { fillAndSend, waitForAssistantMessage } from '../helpers';
-
-/** Wait for the agent's thread navigation to load. */
-async function waitForThreadSidebar(page: Page) {
-  // The threads panel starts collapsed on a fresh agent page and auto-expands once a thread exists.
-  const expand = page.getByRole('button', { name: 'Expand panel' });
-  if (await expand.isVisible()) await expand.click();
-  await expect(page.getByRole('navigation', { name: 'Threads', exact: true }).getByRole('link', { name: 'New Thread', exact: true })).toBeVisible({ timeout: 10_000 });
-}
+import { test, expect } from '@playwright/test';
+import { fillAndSend, waitForAssistantMessage, waitForThreadSidebar } from '../helpers';
 
 test.describe('Memory & Threads', () => {
   let pageErrors: string[] = [];
