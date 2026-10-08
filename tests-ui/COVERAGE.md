@@ -16,7 +16,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 |------------------------|------|------|---------|-------|
 | Agents                 | 20   | 0    | 0       |       |
 | Agent layout tabs      | 3    | 0    | 0       | Editor icon button disabled; tab list is exactly Chat/Traces (agent Evals tab removed upstream in mastra-ai/mastra#24205); Traces tab asserts `aria-selected=true` on its scoped route |
-| Tools                  | 7    | 0    | 1       |       |
+| Tools                  | 8    | 0    | 0       |       |
 | Workflows              | 12   | 0    | 0       |       |
 | MCP Servers            | 3    | 0    | 0       |       |
 | Observability          | 6    | 0    | 0       |       |
@@ -34,7 +34,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
 | Settings               | 2    | 0    | 0       |       |
 | Request Context        | 2    | 0    | 0       |       |
-| **Total**              | **88** | **2** | **1** |       |
+| **Total**              | **89** | **2** | **0** |       |
 
 > Run count from `pnpm test:ui`: 90 tests (including global setup). See route map in App.tsx for the full Studio surface.
 
@@ -124,18 +124,18 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | 11 | Failure-workflow: failed status + error text in run header | ✅     |
 | 12 | Run history: expand panel, view past runs     | ✅     |
 
-### Tools — `tests-ui/tools/tool-execution.spec.ts` (7/8)
+### ✅ Tools — `tests-ui/tools/tool-execution.spec.ts` (8/8)
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
-| 1 | Tools list page shows registered tools      | ✅     |
+| 1 | Tools list page shows registered tools; clicking one opens its drawer (Overview, Used by, close) | ✅     |
 | 2 | Calculator tool: add 5 + 3 = 8             | ✅     |
 | 3 | Calculator tool: multiply 7 * 6 = 42       | ✅     |
 | 4 | String-transform tool: uppercase            | ✅     |
 | 5 | Timestamp tool: no input required           | ✅     |
 | 6 | String-transform tool: reverse              | ✅     |
 | 7 | Needs-approval tool: executes without gate  | ✅     |
-| 8 | Always-fails tool: error display            | 🚫     |
+| 8 | Always-fails tool: Error status and thrown message shown in drawer response | ✅     |
 
 ### ✅ MCP Servers — `tests-ui/mcp/mcp-servers.spec.ts` (3/3)
 
@@ -143,7 +143,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 |---|---------------------------------------------|--------|
 | 1 | MCP servers list page shows registered servers | ✅  |
 | 2 | MCP server detail: Connect card (HTTP/CLI tabs only — no SSE for MCP 2.x), HTTP endpoint URL, available tools | ✅     |
-| 3 | Execute MCP tool from UI                    | ✅     |
+| 3 | Execute MCP tool from the server page's tool drawer | ✅     |
 
 ### ✅ Observability — `tests-ui/observability/traces.spec.ts` (6/6)
 
@@ -235,7 +235,6 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 
 ## Known Issues
 
-- 🚫 `always-fails` tool error is not surfaced in the UI result panel (JSON output stays `{}`). Blocked until playground renders tool errors.
 - ⬜ Workspace search tests (BM25, vector) require `canBM25: true` / `canVector: true` on the workspace config. Current `test-workspace` has both disabled.
 
 ## Notes

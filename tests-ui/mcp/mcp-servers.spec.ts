@@ -4,8 +4,11 @@ import { test, expect, Page } from '@playwright/test';
  * Wait for a tool result containing the expected key, then parse and return the JSON.
  */
 async function waitForToolResult(page: Page, expectedKey: string): Promise<unknown> {
-  const jsonPanel = page.locator('[data-language="json"]');
+  // Tool drawer response (mastra-ai/mastra#25621): status badge + highlighted JSON in <pre><code>.
+  const response = page.getByRole('region', { name: 'Response' });
+  const jsonPanel = response.locator('pre code');
   await expect(jsonPanel).toContainText(expectedKey, { timeout: 10_000 });
+  await expect(response).toContainText('Success');
   const text = await jsonPanel.textContent();
   if (!text) throw new Error('Tool result panel has no text content');
   return JSON.parse(text);
@@ -45,15 +48,20 @@ test.describe('MCP Servers', () => {
   });
 
   test('execute MCP tool from UI', async ({ page }) => {
-    await page.goto('/mcps/test-mcp/tools/calculator');
+    // MCP tool pages became a drawer on the server page (mastra-ai/mastra#25621).
+    await page.goto('/mcps/test-mcp');
+    await page.getByRole('link', { name: 'calculator' }).click();
+    await expect(page).toHaveURL(/\/mcps\/test-mcp\?tool=calculator/);
+    const drawer = page.getByRole('dialog', { name: 'calculator' });
+    await drawer.getByRole('tab', { name: 'Playground' }).click();
 
     // Fill the calculator form
-    await page.getByRole('combobox', { name: 'Operation' }).click();
+    await drawer.getByRole('combobox', { name: /^Operation/ }).click();
     await page.getByRole('option', { name: 'multiply' }).click();
 
-    await page.getByRole('spinbutton', { name: 'A' }).fill('6');
-    await page.getByRole('spinbutton', { name: 'B' }).fill('7');
-    await page.getByRole('button', { name: 'Submit' }).click();
+    await drawer.getByRole('spinbutton', { name: /^A\b/ }).fill('6');
+    await drawer.getByRole('spinbutton', { name: /^B\b/ }).fill('7');
+    await drawer.getByRole('button', { name: 'Run' }).click();
 
     // MCP tools wrap the output in an extra { result: ... } envelope
     const result = await waitForToolResult(page, 'result');
