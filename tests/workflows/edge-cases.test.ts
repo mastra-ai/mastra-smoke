@@ -23,7 +23,7 @@ describe('edge cases', () => {
   });
 
   describe('invalid operations', () => {
-    it('should return 500 when resuming a completed (non-suspended) run', async () => {
+    it('should return 409 when resuming a completed (non-suspended) run', async () => {
       const { runId } = await startWorkflow('sequential-steps', {
         inputData: { name: 'completed-resume-test' },
       });
@@ -33,7 +33,8 @@ describe('edge cases', () => {
         resumeData: {},
       });
 
-      expect(status).toBe(500);
+      // Resume conflicts map to 409 since mastra-ai/mastra#26688.
+      expect(status).toBe(409);
       expect(data.error).toBe('This workflow run was not suspended');
     });
 
