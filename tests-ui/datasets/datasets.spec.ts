@@ -44,10 +44,13 @@ test.describe('Datasets', () => {
     await expect(page).toHaveURL(/\/datasets\/new$/);
     await expect(page.getByRole('heading', { name: 'Create new dataset' }).first()).toBeVisible();
 
+    // New datasets come pre-named "Dataset <short id>" (mastra-ai/mastra#26529), so submit is enabled immediately.
     const submitBtn = page.getByRole('button', { name: 'Create Dataset' });
-    await expect(submitBtn).toBeDisabled();
+    const nameField = page.getByRole('textbox', { name: /^Name/ });
+    await expect(nameField).toHaveValue(/^Dataset [0-9a-z]{4}$/);
+    await expect(submitBtn).toBeEnabled();
 
-    await page.getByRole('textbox', { name: 'Name (required)' }).fill('E2E Test Dataset');
+    await nameField.fill('E2E Test Dataset');
     await page.getByRole('textbox', { name: 'Description' }).fill('Created by smoke tests');
 
     await expect(submitBtn).toBeEnabled();
@@ -459,35 +462,40 @@ test.describe('Datasets', () => {
     await dialog.getByRole('combobox').nth(3).click();
     await page.getByRole('option', { name: 'Completeness Scorer', exact: true }).first().click();
 
+    // The experiment name defaults to "<target>-<short id>" once a target is picked (mastra-ai/mastra#26529).
     const runButton = dialog.getByRole('button', { name: 'Run', exact: true });
-    await expect(runButton).toBeDisabled();
-    await expect(dialog.getByText('Missing name', { exact: true })).toBeVisible();
+    const nameField = dialog.getByRole('textbox', { name: /^Name/ });
+    await expect(nameField).toHaveValue(/^completeness-scorer-[0-9a-z]{4}$/);
+    await expect(runButton).toBeEnabled();
+    await expect(dialog.getByText('Missing name', { exact: true })).toHaveCount(0);
     const experimentName = `Completeness experiment ${Date.now()}`;
-    await dialog.getByRole('textbox', { name: 'Name (required)', exact: true }).fill(experimentName);
+    await nameField.fill(experimentName);
     await expect(runButton).toBeEnabled();
     await runButton.click();
 
     // Experiment details now live at the top-level /experiments route.
     await page.waitForURL(/\/experiments\/[^/]+$/, { timeout: 15_000 });
 
-    // Verify the persisted experiment summary and its seeded item count.
-    await expect(page.getByRole('link', { name: new RegExp(datasetName) })).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('main')).toContainText(/Items\s*2 items/);
-
-    // Verify the target is shown as Completeness Scorer.
-    await expect(page.getByRole('link', { name: 'Completeness Scorer' })).toBeVisible();
-
-    // Detail pages title themselves with the entity id (page-layout shell, mastra-ai/mastra#24643).
+    // The result page (mastra-ai/mastra#26868) titles itself with the experiment id, names the run and its
+    // item count in the breadcrumb, and summarises the run above one selectable row per dataset item.
     const experimentId = new URL(page.url()).pathname.split('/').pop()!;
-    await expect(page.getByRole('main').getByRole('heading', { name: experimentId, level: 1, exact: true })).toBeAttached();
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(experimentName);
-    // Each result row renders the first 8 chars of the dataset item ID
-    for (const itemId of itemIds) {
-      await expect(page.getByText(itemId.slice(0, 8))).toBeVisible({ timeout: 10_000 });
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { name: experimentId, level: 1, exact: true })).toBeAttached({ timeout: 30_000 });
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(`${experimentName}2 items`);
+    await expect(main).toContainText('Run duration');
+    for (const [i, itemId] of itemIds.entries()) {
+      await expect(main.getByRole('checkbox', { name: `Select result ${itemId}` })).toBeVisible({ timeout: 10_000 });
+      await expect(main.getByRole('button', { name: new RegExp(`^${itemId.slice(0, 8)} `) })).toContainText(
+        itemPayloads[i].input.input,
+      );
     }
-    // The input text from our seeded items should be visible in the result rows
-    await expect(page.getByText('What is AI?')).toBeVisible();
-    await expect(page.getByText('What is ML?')).toBeVisible();
+
+    // The page no longer names the dataset or target, so check what was persisted for this run.
+    const listRes = await request.get(`/api/datasets/${datasetId}/experiments`);
+    expect(listRes.ok()).toBeTruthy();
+    const { experiments } = await listRes.json();
+    expect(experiments).toHaveLength(1);
+    expect(experiments[0]).toMatchObject({ id: experimentId, name: experimentName, datasetId, targetType: 'scorer' });
 
   });
 });

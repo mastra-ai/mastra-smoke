@@ -33,13 +33,13 @@ describe('cancel suspended workflow', () => {
       method: 'POST',
     });
 
-    // Attempt to resume the cancelled run — should get 500 with clear error
+    // Resuming a run that is not suspended is a conflict (409) since mastra-ai/mastra#26688
     const { status, data } = await resumeWorkflow('basic-suspend', runId, {
       step: 'await-approval',
       resumeData: { approved: true },
     });
 
-    expect(status).toBe(500);
+    expect(status).toBe(409);
     expect(data.error).toBe('This workflow run was not suspended');
   });
 });

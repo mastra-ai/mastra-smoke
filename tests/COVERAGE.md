@@ -177,7 +177,7 @@
 | Test | Status |
 |------|--------|
 | Cancel a workflow in suspended state | ✅ |
-| Not resumable after cancellation | ✅ |
+| Not resumable after cancellation (409) | ✅ |
 
 #### Run Management — `run-management.test.ts` (7 tests)
 
@@ -208,7 +208,7 @@
 | 404 for non-existent workflow | ✅ |
 | 404 for non-existent run | ✅ |
 | 404 for non-existent workflow metadata | ✅ |
-| 500 when resuming a completed (non-suspended) run | ✅ |
+| 409 when resuming a completed (non-suspended) run | ✅ |
 | 500 when time-traveling to non-existent step | ✅ |
 | Foreach with empty array | ✅ |
 | Foreach with single item | ✅ |
