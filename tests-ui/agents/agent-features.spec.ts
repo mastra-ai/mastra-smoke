@@ -70,9 +70,13 @@ test.describe('Agent Features', () => {
       url.searchParams.get('rootEntityType') === 'agent' &&
       url.searchParams.get('filterEntityId') === 'test-agent');
 
-    // Trace indexing can lag the chat response, so poll the auto-refreshing list.
+    // The list merges new traces via a 30s delta poll, so a trace indexed just after the tab opens
+    // can lag; reload until it shows instead of racing the poll interval.
     const traceRow = page.locator('button.data-list-row').filter({ hasText: 'Say hello and nothing else.' }).first();
-    await expect(traceRow).toBeVisible({ timeout: 30_000 });
+    await expect(async () => {
+      if (!(await traceRow.isVisible())) await page.reload();
+      await expect(traceRow).toBeVisible({ timeout: 5_000 });
+    }).toPass({ timeout: 45_000 });
     // Rows show Type + the root entity's display name (mastra-ai/mastra#25306).
     await expect(traceRow).toContainText(/Agent\s*Test Agent/);
     await traceRow.click();
@@ -85,8 +89,9 @@ test.describe('Agent Features', () => {
     await expect(details.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();
     // The span payload ties the trace back to this exact thread and message.
     const spanDetails = details.getByRole('tabpanel', { name: 'Details' });
-    await expect(spanDetails.locator('code').filter({ hasText: '"contents"' })).toContainText('Say hello and nothing else.');
-    await expect(spanDetails.locator('code').filter({ hasText: '"threadId"' })).toContainText(threadId);
+    // Input/output default to a rendered Preview; metadata stays a JSON payload viewer.
+    await expect(spanDetails.getByRole('paragraph').filter({ hasText: 'Say hello and nothing else.' })).toBeVisible();
+    await expect(spanDetails.getByRole('textbox', { name: 'JSON payload' }).first()).toContainText(`"threadId": "${threadId}"`);
 
     await details.getByRole('button', { name: 'Close trace', exact: true }).click();
     await expect(details).not.toBeVisible();

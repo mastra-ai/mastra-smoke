@@ -4,9 +4,9 @@ import { test, expect, Page } from '@playwright/test';
  * Wait for a tool result containing the expected key, then parse and return the JSON.
  */
 async function waitForToolResult(page: Page, expectedKey: string): Promise<unknown> {
-  // Tool drawer response (mastra-ai/mastra#25621): status badge + highlighted JSON in <pre><code>.
+  // Tool drawer response: status badge + read-only CodeMirror JSON viewer.
   const response = page.getByRole('region', { name: 'Response' });
-  const jsonPanel = response.locator('pre code');
+  const jsonPanel = response.getByRole('textbox', { name: 'Tool response' });
   await expect(jsonPanel).toContainText(expectedKey, { timeout: 10_000 });
   await expect(response).toContainText('Success');
   const text = await jsonPanel.textContent();
@@ -137,6 +137,8 @@ test.describe('Tool Execution', () => {
     const response = drawer.getByRole('region', { name: 'Response' });
     await expect(response).toContainText('Error', { timeout: 10_000 });
     await expect(response).not.toContainText('Success');
-    await expect(response.locator('pre code')).toContainText('Tool error: smoke-boom');
+    // Error payloads render as plain text; only successful results use the JSON viewer.
+    await expect(response).toContainText('Tool error: smoke-boom');
+    await expect(response.getByRole('textbox', { name: 'Tool response' })).toHaveCount(0);
   });
 });
