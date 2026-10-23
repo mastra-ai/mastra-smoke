@@ -79,7 +79,7 @@ test.describe('Agent Features', () => {
 
     const details = page.getByRole('dialog', { name: 'Trace details' });
     await expect(details.getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
-    const agentSpan = details.getByRole('button', { name: /^agent run: 'test-agent'/ });
+    const agentSpan = details.getByRole('button', { name: /^agent run\s*test-agent/ });
     await expect(agentSpan).toBeVisible();
     await agentSpan.click();
     await expect(details.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();

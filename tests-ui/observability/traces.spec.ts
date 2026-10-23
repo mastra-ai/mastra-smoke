@@ -104,7 +104,7 @@ test.describe('Observability', () => {
     await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
 
     // Span buttons should be visible in the timeline
-    const spanButton = page.getByRole('button', { name: /workflow (run|step):/ });
+    const spanButton = page.getByRole('button', { name: /^workflow (run|step)\s*[a-z]/ });
     await expect(spanButton.first()).toBeVisible();
 
     // Close the drawer (its close button is now labelled "Close trace").
@@ -121,7 +121,7 @@ test.describe('Observability', () => {
     await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
 
     // Click a step span in the timeline
-    const stepSpan = page.getByRole('button', { name: /workflow step:/ });
+    const stepSpan = page.getByRole('button', { name: /^workflow step\s*[a-z]/ });
     await expect(stepSpan.first()).toBeVisible({ timeout: 5_000 });
     await stepSpan.first().click();
 

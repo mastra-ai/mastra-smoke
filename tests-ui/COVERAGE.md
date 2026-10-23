@@ -170,16 +170,16 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 |    | Test                                             | Status |
 |----|--------------------------------------------------|--------|
 |  1 | Datasets list page shows heading & create        | ✅     |
-|  2 | Create dataset (pre-filled default name) and verify it appears | ✅     |
-|  3 | Add item to dataset and view its detail          | ✅     |
+|  2 | Create dataset via dialog (pre-filled default name) and verify it appears | ✅     |
+|  3 | Add item via 3-step wizard and view its detail panel | ✅     |
 |  4 | Edit dataset name and description                | ✅     |
 |  5 | Edit item input and verify update                | ✅     |
 |  6 | Delete item from detail panel                    | ✅     |
-|  7 | View experiments opens filtered global list     | ✅     |
+|  7 | Header Experiments link (shown once items exist) opens filtered global list | ✅     |
 |  8 | Delete dataset removes it from list              | ✅     |
 |  9 | JSON import: upload file, validate inline preview, and persist items        | ✅     |
 | 10 | CSV import: upload file and reach mapping        | ✅     |
-| 11 | Default experiment name follows the scorer target, run with a custom name, and verify breadcrumb identity, item count, result rows and persisted target  | ✅     |
+| 11 | New experiment: Run gated on target, default name placeholder follows the scorer target, run with a custom name, and verify breadcrumb identity, item count, result rows and persisted target  | ✅     |
 
 ### Scorers — `tests-ui/scorers/` (2/2)
 
