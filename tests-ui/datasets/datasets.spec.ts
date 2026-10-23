@@ -7,7 +7,7 @@ async function expectDatasetLoaded(page: Page, datasetName: string) {
   await expect(page.getByRole('main').getByRole('heading', { name: datasetId, level: 1, exact: true })).toBeAttached({ timeout: 10_000 });
   // The current breadcrumb crumb is a "Switch dataset" combobox labelled with the
   // dataset name (Studio unified crumbs: current = label + switcher, not a link).
-  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch dataset' }))
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch dataset', exact: true }))
     .toHaveText(datasetName, { timeout: 10_000 });
 }
 
@@ -32,26 +32,26 @@ test.describe('Datasets', () => {
     await page.goto('/datasets');
 
     await expect(page.getByRole('heading', { name: 'Datasets', level: 1 })).toBeVisible();
-    // The populated list says "Create a dataset" while the empty state says "Create Dataset".
-    await expect(page.getByRole('button', { name: /Create (a )?dataset/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New dataset', exact: true })).toBeVisible();
   });
 
   test('create dataset and verify it appears in list', async ({ page }) => {
     await page.goto('/datasets');
 
-    // Dataset creation now uses a dedicated page instead of a dialog.
-    await page.getByRole('button', { name: /Create (a )?dataset/i }).first().click();
-    await expect(page).toHaveURL(/\/datasets\/new$/);
-    await expect(page.getByRole('heading', { name: 'Create new dataset' }).first()).toBeVisible();
+    // Dataset creation opens the "Create new dataset" dialog over the list.
+    await page.getByRole('button', { name: 'New dataset', exact: true }).click();
+    const createDialog = page.getByRole('dialog', { name: 'Create new dataset' });
+    await expect(createDialog).toBeVisible();
 
     // New datasets come pre-named "Dataset <short id>" (mastra-ai/mastra#26529), so submit is enabled immediately.
-    const submitBtn = page.getByRole('button', { name: 'Create Dataset' });
-    const nameField = page.getByRole('textbox', { name: /^Name/ });
+    const submitBtn = createDialog.getByRole('button', { name: 'Create Dataset' });
+    const nameField = createDialog.getByRole('textbox', { name: /^Name/ });
     await expect(nameField).toHaveValue(/^Dataset [0-9a-z]{4}$/);
     await expect(submitBtn).toBeEnabled();
 
+    // The create dialog only asks for a name now; description is set later via Edit Dataset.
+    await expect(createDialog.getByRole('textbox', { name: 'Description' })).toHaveCount(0);
     await nameField.fill('E2E Test Dataset');
-    await page.getByRole('textbox', { name: 'Description' }).fill('Created by smoke tests');
 
     await expect(submitBtn).toBeEnabled();
     const createdResponse = page.waitForResponse(response =>
@@ -69,7 +69,6 @@ test.describe('Datasets', () => {
 
     // Dataset should appear in the list
     await expect(page.getByRole('link', { name: /E2E Test Dataset/ }).first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('Created by smoke tests').first()).toBeVisible();
   });
 
   test('add item to dataset and view its detail', async ({ page, request }) => {
@@ -89,27 +88,30 @@ test.describe('Datasets', () => {
     // Should show empty items tab initially — the single-item action should be present.
     await expect(page.getByRole('button', { name: 'New item', exact: true })).toBeVisible();
 
+    // "New item" opens a three-step wizard: Input and ground truth → Tool mocks → Context and trajectory.
     await page.getByRole('button', { name: 'New item', exact: true }).click();
-    await expect(page.getByRole('dialog', { name: 'Add Item' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Input and ground truth' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('list', { name: 'Step 1 of 3' })).toBeVisible();
 
-    // The dialog has textbox editors for Input and Ground Truth
-    const dialog = page.getByRole('dialog', { name: 'Add Item' });
-    const inputEditor = dialog.getByRole('textbox').first();
-    await inputEditor.click();
+    await dialog.getByRole('textbox', { name: 'Input' }).click();
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.type('{"prompt": "Hello world"}');
-
-    // Fill Ground Truth editor — second textbox
-    const gtEditor = dialog.getByRole('textbox').nth(1);
-    await gtEditor.click();
+    await dialog.getByRole('textbox', { name: 'Ground truth' }).click();
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.type('{"response": "Hi there"}');
+    await dialog.getByRole('button', { name: 'Next' }).click();
 
-    // Submit
-    await dialog.getByRole('button', { name: 'Add Item' }).click();
+    const toolMocks = page.getByRole('dialog', { name: 'Tool mocks' });
+    await expect(toolMocks.getByRole('list', { name: 'Step 2 of 3' })).toBeVisible();
+    await toolMocks.getByRole('button', { name: 'Next' }).click();
 
-    // Dialog should close
-    await expect(dialog).not.toBeVisible({ timeout: 10_000 });
+    const context = page.getByRole('dialog', { name: 'Context and trajectory' });
+    await expect(context.getByRole('list', { name: 'Step 3 of 3' })).toBeVisible();
+    await expect(context.getByRole('switch', { name: 'Request context' })).not.toBeChecked();
+    await expect(context.getByRole('switch', { name: 'Expected trajectory' })).not.toBeChecked();
+    await context.getByRole('button', { name: 'Add item' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 10_000 });
 
     // Item should appear in the list
     await expect(page.getByText('"Hello world"')).toBeVisible({ timeout: 10_000 });
@@ -122,9 +124,9 @@ test.describe('Datasets', () => {
     // "Input" / "Ground Truth" also appear as table column headers, so scope the
     // label assertions to the detail panel (the last occurrence, rendered after
     // the items table) to avoid ambiguous matches.
-    const itemPanel = page.getByRole('dialog', { name: /^Dataset item / });
+    const itemPanel = page.getByRole('region', { name: /^Dataset item / });
     await expect(itemPanel).toBeVisible({ timeout: 5_000 });
-    await expect(itemPanel.getByRole('heading', { name: /^Item /, level: 3 })).toBeVisible();
+    await expect(itemPanel.getByRole('heading', { name: 'Dataset item', level: 3 })).toBeVisible();
     await expect(page.getByText('Input', { exact: true }).last()).toBeVisible();
     await expect(page.getByText('Ground Truth', { exact: true }).last()).toBeVisible();
 
@@ -193,9 +195,9 @@ test.describe('Datasets', () => {
     await page.getByRole('button', { name: /original/ }).click();
 
     // Detail panel should show read-only content
-    const itemPanel = page.getByRole('dialog', { name: /^Dataset item / });
+    const itemPanel = page.getByRole('region', { name: /^Dataset item / });
     await expect(itemPanel).toBeVisible({ timeout: 5_000 });
-    await expect(itemPanel.getByRole('heading', { name: /^Item /, level: 3 })).toBeVisible();
+    await expect(itemPanel.getByRole('heading', { name: 'Dataset item', level: 3 })).toBeVisible();
 
     // Open item actions menu → Edit
     await page.getByRole('button', { name: 'Actions menu' }).last().click();
@@ -240,9 +242,9 @@ test.describe('Datasets', () => {
 
     // Click item button to open detail panel
     await page.getByRole('button', { name: /to_delete/ }).click();
-    const itemPanel = page.getByRole('dialog', { name: /^Dataset item / });
+    const itemPanel = page.getByRole('region', { name: /^Dataset item / });
     await expect(itemPanel).toBeVisible({ timeout: 5_000 });
-    await expect(itemPanel.getByRole('heading', { name: /^Item /, level: 3 })).toBeVisible();
+    await expect(itemPanel.getByRole('heading', { name: 'Dataset item', level: 3 })).toBeVisible();
 
     // Open item actions menu → Delete Item
     await page.getByRole('button', { name: 'Actions menu' }).last().click();
@@ -274,10 +276,18 @@ test.describe('Datasets', () => {
     const datasetId = dataset.id;
     createdDatasetIds.add(datasetId);
 
+    // An empty dataset only offers "Schema" in the header; experiment actions appear once it has items.
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, 'Experiments Link Dataset');
+    const header = page.getByRole('banner');
+    await expect(header.getByRole('button', { name: 'Schema' })).toBeVisible();
+    await expect(header.getByRole('link', { name: 'Experiments', exact: true })).toHaveCount(0);
 
-    await page.getByRole('link', { name: 'View experiments' }).click();
+    const itemRes = await request.post(`/api/datasets/${datasetId}/items`, { data: { input: { q: 'link' } } });
+    expect(itemRes.ok()).toBeTruthy();
+    await page.reload();
+    await expect(header.getByRole('button', { name: 'New experiment' })).toBeVisible({ timeout: 10_000 });
+    await header.getByRole('link', { name: 'Experiments', exact: true }).click();
 
     await expect(page).toHaveURL(new RegExp(`/experiments\\?dataset=${datasetId}$`));
     await expect(page.getByRole('heading', { name: 'Experiments', level: 1 })).toBeVisible();
@@ -449,25 +459,25 @@ test.describe('Datasets', () => {
     await page.goto(`/datasets/${datasetId}`);
     await expectDatasetLoaded(page, datasetName);
 
-    // Click "Run Experiment"
-    await page.getByRole('button', { name: /Run Experiment/ }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('heading', { name: 'Run experiment', exact: true })).toBeVisible();
+    // "New experiment" in the page header opens the dialog with this dataset pre-selected.
+    await page.getByRole('banner').getByRole('button', { name: 'New experiment' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New experiment' });
+    await expect(dialog.getByRole('heading', { name: 'New experiment', level: 2 })).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: 'Dataset (required)' })).toHaveValue(datasetName);
+    await expect(dialog).toContainText('2 items · latest');
 
-    // Dataset and version selectors precede Target Type in the redesigned dialog.
-    await dialog.getByRole('combobox').nth(2).click();
-    await page.getByRole('option', { name: 'Scorer' }).click();
-
-    // Selecting a target type inserts the Target selector before optional scorers.
-    await dialog.getByRole('combobox').nth(3).click();
+    // Run stays disabled until a target (agent, workflow or scorer) is picked.
+    const runButton = dialog.getByRole('button', { name: 'Run experiment', exact: true });
+    await expect(runButton).toBeDisabled();
+    await dialog.getByRole('combobox', { name: 'Target (required)' }).click();
     await page.getByRole('option', { name: 'Completeness Scorer', exact: true }).first().click();
-
-    // The experiment name defaults to "<target>-<short id>" once a target is picked (mastra-ai/mastra#26529).
-    const runButton = dialog.getByRole('button', { name: 'Run', exact: true });
-    const nameField = dialog.getByRole('textbox', { name: /^Name/ });
-    await expect(nameField).toHaveValue(/^completeness-scorer-[0-9a-z]{4}$/);
+    await expect(dialog.getByRole('combobox', { name: 'Target (required)' })).toHaveValue('Completeness Scorer');
     await expect(runButton).toBeEnabled();
-    await expect(dialog.getByText('Missing name', { exact: true })).toHaveCount(0);
+
+    // The name lives under Advanced; the "<target>-<short id>" default (mastra-ai/mastra#26529) is its placeholder.
+    await dialog.getByRole('button', { name: 'Advanced' }).click();
+    const nameField = dialog.getByRole('textbox', { name: 'Experiment name' });
+    await expect(nameField).toHaveAttribute('placeholder', /^completeness-scorer-[0-9a-z]{4}$/);
     const experimentName = `Completeness experiment ${Date.now()}`;
     await nameField.fill(experimentName);
     await expect(runButton).toBeEnabled();
