@@ -89,8 +89,9 @@ test.describe('Agent Features', () => {
     await expect(details.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();
     // The span payload ties the trace back to this exact thread and message.
     const spanDetails = details.getByRole('tabpanel', { name: 'Details' });
-    // Input/output default to a rendered Preview; metadata stays a JSON payload viewer.
+    // Input/output default to a rendered Preview; Metadata is a collapsed section holding a JSON payload viewer.
     await expect(spanDetails.getByRole('paragraph').filter({ hasText: 'Say hello and nothing else.' })).toBeVisible();
+    await spanDetails.getByRole('button', { name: 'Metadata', exact: true }).click();
     await expect(spanDetails.getByRole('textbox', { name: 'JSON payload' }).first()).toContainText(`"threadId": "${threadId}"`);
 
     await details.getByRole('button', { name: 'Close trace', exact: true }).click();
