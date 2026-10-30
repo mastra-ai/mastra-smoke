@@ -16,6 +16,8 @@ describe('workspace metadata', () => {
       expect(ws.source).toBe('mastra');
       expect(ws.capabilities).toEqual({
         hasFilesystem: true,
+        // Added by mastra-ai/mastra#29027; the fixture's filesystem is static.
+        hasDynamicFilesystem: false,
         hasSandbox: false,
         canBM25: false,
         canVector: false,
@@ -37,6 +39,8 @@ describe('workspace metadata', () => {
       expect(data.status).toBe('ready');
       expect(data.capabilities).toEqual({
         hasFilesystem: true,
+        // Added by mastra-ai/mastra#29027; the fixture's filesystem is static.
+        hasDynamicFilesystem: false,
         hasSandbox: false,
         canBM25: false,
         canVector: false,
