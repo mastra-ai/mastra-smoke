@@ -112,7 +112,9 @@ test.describe('Observability', () => {
     await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).not.toBeVisible();
   });
 
-  test('span inspection within trace', async ({ page }) => {
+  // Blocked by mastra-ai/mastra#29044: selecting a workflow step span puts the Studio
+  // span panel into an infinite render loop and freezes the tab (core 1.81.0-alpha).
+  test.skip('span inspection within trace', async ({ page }) => {
     // Find a workflow trace that has multiple spans
     await page.goto('/observability');
     const workflowTrace = traceEntries(page).filter({ hasText: 'sequential-steps' }).first();
@@ -125,8 +127,16 @@ test.describe('Observability', () => {
     await expect(stepSpan.first()).toBeVisible({ timeout: 5_000 });
     await stepSpan.first().click();
 
-    // The span detail panel opens inside the same dialog headed "Span <id…>".
-    await expect(traceDetails(page).getByRole('heading', { name: /^Span [0-9a-f]+…?$/ })).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole('tab', { name: 'Details' })).toBeVisible();
+    // The span panel opens inside the same dialog as a region with a "Close span" button,
+    // identifying the step span as a child of this trace.
+    const traceHeading = await traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ }).textContent();
+    const shortTraceId = traceHeading!.replace(/^Trace\s*/, '').replace('…', '').trim().slice(0, 6);
+    const spanPanel = traceDetails(page).getByRole('region').filter({ has: page.getByRole('button', { name: 'Close span' }) });
+    await expect(spanPanel).toBeVisible({ timeout: 5_000 });
+    await expect(spanPanel.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    const identifiers = spanPanel.getByRole('region', { name: 'Identifiers' });
+    await expect(identifiers.getByRole('button', { name: 'Copy Span id' })).toHaveText(/^[0-9a-f]{16}$/);
+    await expect(identifiers.getByRole('button', { name: 'Copy Trace id' })).toHaveText(new RegExp(`^${shortTraceId}[0-9a-f]+$`));
+    await expect(identifiers.getByRole('button', { name: 'Copy Parent span id' })).toBeVisible();
   });
 });
