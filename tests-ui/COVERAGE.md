@@ -19,7 +19,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | Tools                  | 8    | 0    | 0       |       |
 | Workflows              | 12   | 0    | 0       |       |
 | MCP Servers            | 3    | 0    | 0       |       |
-| Observability          | 6    | 0    | 0       |       |
+| Observability          | 5    | 0    | 1       | Span inspection blocked by mastra-ai/mastra#29044 |
 | Observability Overview | 1    | 0    | 0       | NEW — `/observability-overview` hub: heading + Metrics/Traces link cards |
 | Memory                 | 4    | 0    | 0       |       |
 | Datasets               | 11   | 0    | 0       |       |
@@ -34,7 +34,7 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | Login                  | 1    | 0    | 0       | NEW — `/login` mounts (auth disabled in smoke fixture) |
 | Settings               | 2    | 0    | 0       |       |
 | Request Context        | 2    | 0    | 0       |       |
-| **Total**              | **89** | **2** | **0** |       |
+| **Total**              | **88** | **2** | **1** |       |
 
 > Run count from `pnpm test:ui`: 90 tests (including global setup). See route map in App.tsx for the full Studio surface.
 
@@ -145,14 +145,14 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 | 2 | MCP server detail: Connect card (HTTP/CLI tabs only — no SSE for MCP 2.x), HTTP endpoint URL, available tools | ✅     |
 | 3 | Execute MCP tool from the server page's tool drawer | ✅     |
 
-### ✅ Observability — `tests-ui/observability/traces.spec.ts` (6/6)
+### Observability — `tests-ui/observability/traces.spec.ts` (5/6)
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
 | 1 | Traces list page loads with trace entries    | ✅     |
 | 2 | Filter traces by entity type                | ✅     |
 | 3 | Click trace to open detail dialog            | ✅     |
-| 4 | Span inspection within trace                | ✅     |
+| 4 | Span inspection within trace                | 🚫 blocked by [mastra-ai/mastra#29044](https://github.com/mastra-ai/mastra/issues/29044) |
 | 5 | Traces appear after workflow run             | ✅     |
 | 6 | Traces appear after agent chat              | ✅     |
 

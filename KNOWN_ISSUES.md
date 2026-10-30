@@ -314,3 +314,19 @@ zod v4 emits a 2020-12 `$schema` and works. The Studio/REST route
 tool via Streamable HTTP" fail on the zod 3 leg until
 [mastra-ai/mastra#24403](https://github.com/mastra-ai/mastra/issues/24403) is
 fixed. The tests are correct and left unchanged.
+
+## 15. Studio trace drawer freezes when selecting a workflow step span (upstream)
+
+Since `@mastra/core@1.81.0-alpha` / `mastra@1.37.0-alpha.1` (Oct 30), clicking a
+`workflow step` span in the Trace details drawer leaves the span panel on
+"Loading span details..." and freezes the tab: an infinite render loop (>23k DOM
+mutations within ~1s), so `page.evaluate`/`page.goto` hang. The span API
+(`GET /observability/traces/:traceId/spans/:spanId`) returns 200 in ~20ms for
+every span, so the fault is client-side. Agent root spans still load.
+
+`tests-ui/observability/traces.spec.ts` › "span inspection within trace" is
+`test.skip`ped until
+[mastra-ai/mastra#29044](https://github.com/mastra-ai/mastra/issues/29044) is
+fixed. Its assertions already target the redesigned panel (region with
+"Close span", Details tab, Identifiers with Span/Trace/Parent span ids). Unskip
+it once the fix ships.

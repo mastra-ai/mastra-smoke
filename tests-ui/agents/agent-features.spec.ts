@@ -86,13 +86,15 @@ test.describe('Agent Features', () => {
     const agentSpan = details.getByRole('button', { name: /^agent run\s*test-agent/ });
     await expect(agentSpan).toBeVisible();
     await agentSpan.click();
-    await expect(details.getByRole('heading', { name: /^Span [0-9a-f]+…?$/, level: 3 })).toBeVisible();
-    // The span payload ties the trace back to this exact thread and message.
-    const spanDetails = details.getByRole('tabpanel', { name: 'Details' });
-    // Input/output default to a rendered Preview; Metadata is a collapsed section holding a JSON payload viewer.
-    await expect(spanDetails.getByRole('paragraph').filter({ hasText: 'Say hello and nothing else.' })).toBeVisible();
-    await spanDetails.getByRole('button', { name: 'Metadata', exact: true }).click();
-    await expect(spanDetails.getByRole('textbox', { name: 'JSON payload' }).first()).toContainText(`"threadId": "${threadId}"`);
+    // The span panel is a region named after the agent, with Details/Input/Output tabs.
+    const spanPanel = details.getByRole('region', { name: 'Test Agent' });
+    await expect(spanPanel.getByRole('heading', { name: 'Test Agent', level: 2 })).toBeVisible();
+    // Identifiers tie the span back to this exact thread.
+    const identifiers = spanPanel.getByRole('region', { name: 'Identifiers' });
+    await expect(identifiers.getByRole('button', { name: 'Copy Thread id' })).toHaveText(threadId);
+    // The user message lives under the Input tab.
+    await spanPanel.getByRole('tab', { name: 'Input' }).click();
+    await expect(spanPanel.getByRole('tabpanel', { name: 'Input' })).toContainText('Say hello and nothing else.');
 
     await details.getByRole('button', { name: 'Close trace', exact: true }).click();
     await expect(details).not.toBeVisible();
