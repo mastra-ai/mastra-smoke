@@ -147,19 +147,25 @@ test.describe('Workspaces', () => {
     // Increase timeout — network calls to skills.sh can be slow
     test.setTimeout(60_000);
 
-    // Pre-clean .agents/ in case a previous run crashed mid-install and left
-    // `.agents/skills/find-skills` on disk. If the skill is already installed,
-    // Studio renders the install button as disabled with "Already Installed",
-    // which makes the click below time out.
-    await request.delete(
-      `/api/workspaces/test-workspace/fs/delete?path=.agents&recursive=true&force=true`,
-    );
-
     // ── Mock the registry discovery endpoints so the test doesn't depend on
     //    what is trending on skills.sh. The install & remove endpoints still
     //    hit the real server (and the real skills.sh files API) so we validate
     //    the actual install/remove flow end-to-end.
     const SKILL_NAME = 'find-skills';
+
+    // Start from 0 skills even when a previous attempt failed mid-test (a retry
+    // otherwise sees "1 Skill"). Deleting `.agents` through the fs API alone
+    // leaves the workspace skills cache listing the skill, so uninstall it via
+    // the skills route first (404 when nothing is installed), then wipe leftovers.
+    const resetSkills = async () => {
+      const remove = await request.post('/api/workspaces/test-workspace/skills-sh/remove', {
+        data: { skillName: SKILL_NAME },
+      });
+      expect([200, 404]).toContain(remove.status());
+      await request.delete(`/api/workspaces/test-workspace/fs/delete?path=.agents&recursive=true&force=true`);
+    };
+    await resetSkills();
+
     const SKILL_OWNER = 'vercel-labs';
     const SKILL_REPO = 'skills';
     const SKILL_SOURCE = `${SKILL_OWNER}/${SKILL_REPO}`;
@@ -222,9 +228,6 @@ test.describe('Workspaces', () => {
     await expect(folder(page, SKILL_NAME)).toHaveCount(0, { timeout: 5_000 });
     await expect(summary(page)).toHaveText(/0 Skills/);
 
-    // Clean up .agents directory from workspace filesystem (in case of leftover)
-    await request.delete(
-      `/api/workspaces/test-workspace/fs/delete?path=.agents&recursive=true&force=true`,
-    );
+    await resetSkills();
   });
 });
