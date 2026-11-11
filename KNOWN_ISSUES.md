@@ -291,7 +291,9 @@ zod 4 leg is unaffected because both imports resolve to the same instance.
 `tests/background-tasks/background-tasks.test.ts` › "GET /background-tasks
 returns the paginated tasks envelope" fails on zod 3 until
 [mastra-ai/mastra#24394](https://github.com/mastra-ai/mastra/pull/24394) ships
-in the alpha. The test is correct and left unchanged.
+in the alpha. On the zod 3 leg the envelope test is skipped and a companion test
+asserts the exact 400 (`keyValidator._parse is not a function`); that companion goes
+red once the fix ships, at which point delete it and drop the `runIf` on the envelope test.
 
 ## 14. `@mastra/mcp` 2.0 + zod 3: MCP tool calls rejected with a 2019-09 `$schema` error (upstream)
 

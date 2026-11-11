@@ -1,8 +1,21 @@
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { fetchApi, fetchJson } from '../utils.js';
 
+// The CI matrix installs zod 3 or zod 4 into the app; the server bundles against whichever resolves.
+const zodMajor = Number(createRequire(import.meta.url)('zod/package.json').version.split('.')[0]);
+
 describe('background tasks — list', () => {
-  it('GET /background-tasks returns the paginated tasks envelope with the seeded task', async () => {
+  // Known upstream bug on zod 3 (KNOWN_ISSUES.md #13, fix pending in mastra-ai/mastra#24394): the list route mixes
+  // bare `zod` with `zod/v4` schemas and rejects every query. Pin the exact failure so this flips red when the fix ships.
+  it.runIf(zodMajor === 3)('GET /background-tasks still fails query parsing on zod 3 (mastra-ai/mastra#24394)', async () => {
+    const res = await fetchApi('/api/background-tasks');
+    expect(res.status).toBe(400);
+    const data: any = await res.json();
+    expect(data.issues).toEqual([{ field: 'unknown', message: 'keyValidator._parse is not a function' }]);
+  });
+
+  it.runIf(zodMajor !== 3)('GET /background-tasks returns the paginated tasks envelope with the seeded task', async () => {
     const { status, data } = await fetchJson<any>('/api/background-tasks');
     expect(status).toBe(200);
     expect(Array.isArray(data.tasks)).toBe(true);

@@ -26,7 +26,7 @@
 | Editor builder   | 7     | ⚠️ Partial — 7 tests covering 3 of 7 routes (registries/settings/infrastructure); popular/search/preview/install untested (need `skills-sh` registry enabled in fixture) |
 | Stored entities  | 41    | Agents full versions/compare diff; skills/mcp-clients/prompt-blocks/scorers ⚠️ partial — only 400 (missing params) and 404 (unknown UUID) probes, no real v1→v2 diff lifecycle |
 | Schedules        | 6     | list + empty-shape sanity + lifecycle |
-| Background tasks | 3     | list shape + create/get |
+| Background tasks | 4     | list shape + create/get; zod 3 pins known 400 (mastra-ai/mastra#24394) |
 | System           | 5     | `/system/api-schema` + `/system/packages` + channels gated |
 | Auth             | 2     | `/auth/capabilities` + `/auth/me` gated shape |
 | Providers        | 5     | tool-providers/processor-providers gated, platforms empty |
