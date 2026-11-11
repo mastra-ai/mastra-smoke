@@ -5,7 +5,7 @@ import { expect, Page } from '@playwright/test';
  * Waits for the input to be editable before typing, and for Send to be enabled before clicking.
  */
 export async function fillAndSend(page: Page, message: string) {
-  const chatInput = page.getByPlaceholder('Enter your message...');
+  const chatInput = page.getByPlaceholder('Enter your message');
   await expect(chatInput).toBeEditable({ timeout: 5_000 });
   await chatInput.click();
   await chatInput.pressSequentially(message, { delay: 10 });

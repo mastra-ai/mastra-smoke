@@ -41,7 +41,7 @@ test('one built artifact supports independent concurrent databases and workspace
   const feedbackType = `isolation-${a.pid}`;
   const feedback = await fetch(`${a.baseUrl}/api/observability/feedback`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: { feedbackType, entityType: 'agent', entityId: 'test-agent', value: 1 } }),
+    body: JSON.stringify({ feedback: { traceId: `isolation-trace-${a.pid}`, feedbackType, entityType: 'agent', entityId: 'test-agent', value: 1 } }),
   });
   assert.equal(feedback.status, 200);
   const feedbackA = await fetch(`${a.baseUrl}/api/observability/feedback?perPage=100`);
@@ -56,7 +56,7 @@ test('one built artifact supports independent concurrent databases and workspace
   await a.stop();
   const stillWritable = await fetch(`${b.baseUrl}/api/observability/feedback`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: { feedbackType: `isolation-${b.pid}`, entityType: 'agent', entityId: 'test-agent', value: 2 } }),
+    body: JSON.stringify({ feedback: { traceId: `isolation-trace-${b.pid}`, feedbackType: `isolation-${b.pid}`, entityType: 'agent', entityId: 'test-agent', value: 2 } }),
   });
   assert.equal(stillWritable.status, 200);
   assert.equal((await fetch(`${b.baseUrl}/api/workflows`)).status, 200);

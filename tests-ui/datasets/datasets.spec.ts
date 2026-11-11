@@ -464,7 +464,7 @@ test.describe('Datasets', () => {
     const dialog = page.getByRole('dialog', { name: 'New experiment' });
     await expect(dialog.getByRole('heading', { name: 'New experiment', level: 2 })).toBeVisible();
     await expect(dialog.getByRole('combobox', { name: 'Dataset (required)' })).toHaveValue(datasetName);
-    await expect(dialog).toContainText('2 items · latest');
+    await expect(dialog).toContainText(/2 items\s*latest/);
 
     // Run stays disabled until a target (agent, workflow or scorer) is picked.
     const runButton = dialog.getByRole('button', { name: 'Run experiment', exact: true });
@@ -474,9 +474,10 @@ test.describe('Datasets', () => {
     await expect(dialog.getByRole('combobox', { name: 'Target (required)' })).toHaveValue('Completeness Scorer');
     await expect(runButton).toBeEnabled();
 
-    // The name lives under Advanced; the "<target>-<short id>" default (mastra-ai/mastra#26529) is its placeholder.
-    await dialog.getByRole('button', { name: 'Advanced' }).click();
+    // The name field sits at the top of the dialog; its placeholder follows the picked target
+    // with a "<target>-<short id>" default (mastra-ai/mastra#26529).
     const nameField = dialog.getByRole('textbox', { name: 'Experiment name' });
+    await expect(nameField).toBeVisible();
     await expect(nameField).toHaveAttribute('placeholder', /^completeness-scorer-[0-9a-z]{4}$/);
     const experimentName = `Completeness experiment ${Date.now()}`;
     await nameField.fill(experimentName);

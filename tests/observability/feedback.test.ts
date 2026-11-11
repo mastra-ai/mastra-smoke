@@ -7,6 +7,8 @@ import { fetchApi, fetchJson } from '../utils.js';
 const FEEDBACK_TYPE = `smoke-feedback-${Date.now()}`;
 const SCORER_ID = `smoke-scorer-${Date.now()}`;
 const ENTITY_ID = `smoke-entity-${Date.now()}`;
+// Feedback and score POSTs require a nonblank traceId (mastra-ai/mastra#29287).
+const TRACE_ID = `smoke-trace-${Date.now()}`;
 
 describe('observability — feedback ingest + read', () => {
   it('POST /api/observability/feedback rejects a missing feedback object with a structured 400', async () => {
@@ -23,11 +25,29 @@ describe('observability — feedback ingest + read', () => {
     expect(data.issues.map((i) => i.field)).toContain('feedback');
   });
 
+  it.each([
+    ['missing', undefined, 'expected string'],
+    ['whitespace-only', '   ', 'must not be empty or whitespace-only'],
+  ])('POST /api/observability/feedback rejects a %s traceId with a structured 400', async (_label, traceId, message) => {
+    const res = await fetchApi('/api/observability/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ feedback: { traceId, feedbackType: FEEDBACK_TYPE, value: 1 } }),
+    });
+    const data = (await res.json()) as { error: string; issues: Array<{ field: string; message: string }> };
+    expect(res.status).toBe(400);
+    expect(data.error).toBe('Invalid request body');
+    const issue = data.issues.find((i) => i.field === 'feedback.traceId');
+    expect(issue, JSON.stringify(data.issues)).toBeDefined();
+    expect(issue!.message).toContain(message);
+  });
+
   it('POST /api/observability/feedback persists a feedback row that shows up in GET /api/observability/feedback', async () => {
     const ingest = await fetchJson<{ success: boolean }>('/api/observability/feedback', {
       method: 'POST',
       body: JSON.stringify({
         feedback: {
+          traceId: TRACE_ID,
+          spanId: 'smoke-span-1',
           feedbackType: FEEDBACK_TYPE,
           entityType: 'agent',
           entityId: ENTITY_ID,
@@ -44,6 +64,8 @@ describe('observability — feedback ingest + read', () => {
       feedback: Array<{
         feedbackId: string;
         feedbackType: string;
+        traceId: string;
+        spanId: string | null;
         entityType: string;
         entityId: string;
         value: unknown;
@@ -61,6 +83,8 @@ describe('observability — feedback ingest + read', () => {
 
     const row = data.feedback.find((f) => f.feedbackType === FEEDBACK_TYPE);
     expect(row, `feedbackType=${FEEDBACK_TYPE} not found in list`).toBeDefined();
+    expect(row!.traceId).toBe(TRACE_ID);
+    expect(row!.spanId).toBe('smoke-span-1');
     expect(row!.entityType).toBe('agent');
     expect(row!.entityId).toBe(ENTITY_ID);
     expect(row!.value).toBe(1);
@@ -85,11 +109,23 @@ describe('observability — scores ingest + read', () => {
     expect(data.issues.map((i) => i.field)).toContain('score');
   });
 
+  it('POST /api/observability/scores rejects a score without a traceId with a structured 400', async () => {
+    const res = await fetchApi('/api/observability/scores', {
+      method: 'POST',
+      body: JSON.stringify({ score: { scorerId: SCORER_ID, entityType: 'agent', entityId: ENTITY_ID, score: 0.5 } }),
+    });
+    const data = (await res.json()) as { error: string; issues: Array<{ field: string; message: string }> };
+    expect(res.status).toBe(400);
+    expect(data.error).toBe('Invalid request body');
+    expect(data.issues.map((i) => i.field)).toContain('score.traceId');
+  });
+
   it('POST /api/observability/scores persists a score row that shows up in GET /api/observability/scores', async () => {
     const ingest = await fetchJson<{ success: boolean }>('/api/observability/scores', {
       method: 'POST',
       body: JSON.stringify({
         score: {
+          traceId: TRACE_ID,
           scorerId: SCORER_ID,
           entityType: 'agent',
           entityId: ENTITY_ID,
@@ -104,6 +140,8 @@ describe('observability — scores ingest + read', () => {
       pagination: { total: number };
       scores: Array<{
         scoreId: string;
+        traceId: string;
+        spanId: string | null;
         entityType: string;
         entityId: string;
         score: number;
@@ -115,6 +153,8 @@ describe('observability — scores ingest + read', () => {
 
     const row = data.scores.find((s) => s.entityId === ENTITY_ID);
     expect(row, `entityId=${ENTITY_ID} not found in scores list`).toBeDefined();
+    expect(row!.traceId).toBe(TRACE_ID);
+    expect(row!.spanId).toBe(null);
     expect(row!.entityType).toBe('agent');
     expect(row!.score).toBe(0.5);
     expect(row!.scoreId).toMatch(

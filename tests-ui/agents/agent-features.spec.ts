@@ -100,7 +100,7 @@ test.describe('Agent Features', () => {
     await expect(details).not.toBeVisible();
     await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(page).toHaveURL(/\/agents\/test-agent\/threads\//);
-    await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
+    await expect(page.getByRole('textbox', { name: 'Enter your message' })).toBeEditable();
   });
 
   test('model settings: network mode enabled only with sub-agents and memory', async ({ page }) => {

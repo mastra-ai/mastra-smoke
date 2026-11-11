@@ -32,7 +32,7 @@ test.describe('Agent Chat', () => {
     await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch agent' }))
       .toHaveText('Test Agent');
-    await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
+    await expect(page.getByRole('textbox', { name: 'Enter your message' })).toBeEditable();
 
     // The capability strip summarises what is attached to the agent. It lives in the
     // left threads panel, which may open collapsed behind "Expand panel" or already expanded.
@@ -158,8 +158,8 @@ test.describe('Agent Chat', () => {
     await expect(page).toHaveURL(/\/threads\/new/);
 
     // Verify the chat input is empty and ready
-    await expect(page.getByPlaceholder('Enter your message...')).toBeVisible();
-    await expect(page.getByPlaceholder('Enter your message...')).toBeEmpty();
+    await expect(page.getByPlaceholder('Enter your message')).toBeVisible();
+    await expect(page.getByPlaceholder('Enter your message')).toBeEmpty();
   });
 
   test('thread sidebar lists previous conversations', async ({ page }) => {
@@ -250,7 +250,7 @@ test.describe('Agent Chat', () => {
 
     await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(page).toHaveURL('/agents/test-agent/threads/new');
-    await expect(page.getByRole('textbox', { name: 'Enter your message...' })).toBeEditable();
+    await expect(page.getByRole('textbox', { name: 'Enter your message' })).toBeEditable();
   });
 
   test('approval agent triggers tool approval flow', async ({ page }) => {
