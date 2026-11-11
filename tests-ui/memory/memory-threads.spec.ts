@@ -16,7 +16,7 @@ test.describe('Memory & Threads', () => {
     await page.goto('/agents/test-agent/threads/new');
 
     // Wait for the chat input to be ready (page fully loaded)
-    await expect(page.getByPlaceholder('Enter your message...')).toBeEditable({ timeout: 15_000 });
+    await expect(page.getByPlaceholder('Enter your message')).toBeEditable({ timeout: 15_000 });
 
     // Send a message to create a new thread
     await fillAndSend(page, 'Thread list test message');

@@ -22,7 +22,7 @@
 | Tools            | 15    | Complete |
 | Memory           | 20    | Complete (+4 extras: thread clone, search, observational-memory gating, buffer-status gating) |
 | Scores           | 11    | Complete |
-| Observability    | 47    | Complete (+4 extras: branches, traces/light gating, trajectory, span scores; +10 discovery; +16 aggregations; +7 feedback/scores ingest/read; +3 logs; +7 traces); traces/score ⚠️ partial — only 400/500 negative cases, happy path untested (no registered trace-scorer) |
+| Observability    | 50    | Complete (+4 extras: branches, traces/light gating, trajectory, span scores; +10 discovery; +16 aggregations; +10 feedback/scores ingest/read; +3 logs; +7 traces); traces/score ⚠️ partial — only 400/500 negative cases, happy path untested (no registered trace-scorer) |
 | Editor builder   | 7     | ⚠️ Partial — 7 tests covering 3 of 7 routes (registries/settings/infrastructure); popular/search/preview/install untested (need `skills-sh` registry enabled in fixture) |
 | Stored entities  | 41    | Agents full versions/compare diff; skills/mcp-clients/prompt-blocks/scorers ⚠️ partial — only 400 (missing params) and 404 (unknown UUID) probes, no real v1→v2 diff lifecycle |
 | Schedules        | 6     | list + empty-shape sanity + lifecycle |
@@ -36,7 +36,7 @@
 | Vectors          | 1     | NEW — `/api/vectors` empty-registry shape |
 | Vector Store     | 0/7   | 🔒 Needs embedder + vector config (per-index endpoints) |
 | Logs             | 0/3   | 🔒 Needs logger transports |
-| **Total**        | **360** |      |
+| **Total**        | **363** |      |
 
 ### Coverage by `/api/*` route group (cross-reference)
 
@@ -388,14 +388,16 @@
 | POST `/metrics/percentiles` one series per requested percentile, empty points | ✅ |
 | POST `/metrics/timeseries` one series per name, costUnit field, empty points | ✅ |
 
-#### Feedback + Scores ingest — `feedback.test.ts` (7 tests)
+#### Feedback + Scores ingest — `feedback.test.ts` (10 tests)
 
 | Test | Status |
 |------|--------|
 | POST `/observability/feedback` rejects missing body with 400 | ✅ |
-| POST `/observability/feedback` persists row that appears in GET `/feedback` | ✅ |
+| POST `/observability/feedback` rejects missing / whitespace-only `traceId` with 400 on `feedback.traceId` (mastra-ai/mastra#29287) | ✅ |
+| POST `/observability/feedback` persists row (with traceId/spanId) that appears in GET `/feedback` | ✅ |
 | POST `/observability/scores` rejects missing body with 400 | ✅ |
-| POST `/observability/scores` persists row that appears in GET `/scores` | ✅ |
+| POST `/observability/scores` rejects a score without `traceId` with 400 on `score.traceId` | ✅ |
+| POST `/observability/scores` persists row (with traceId) that appears in GET `/scores` | ✅ |
 | GET `/observability/scores/:id` returns `{ score: null }` for unknown id | ✅ |
 | POST `/observability/traces/score` rejects missing scorerName+targets with 400 | ✅ |
 | POST `/observability/traces/score` errors with scorer name in message when scorer not registered | 🔒 negative-only |
