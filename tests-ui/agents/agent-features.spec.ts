@@ -255,12 +255,15 @@ test.describe('Agent Features', () => {
     await expect(workflowBadge.getByText('add-farewell')).toBeVisible();
     await expect(workflowBadge.getByText('combine-messages')).toBeVisible();
 
-    // The final assistant response should contain the workflow's combined output.
-    // sequential-steps produces "Hello, <name>! Goodbye, <name>!" — assert both
-    // halves to prove the result came from the workflow, not a generic LLM response.
+    // The model's wording of the reply varies ("I've greeted Alice!"), so prove the
+    // workflow itself produced the combined output via the persisted run.
     const assistantMsg = await waitForAssistantMessage(page);
-    await expect(assistantMsg).toBeVisible({ timeout: 30_000 });
-    await expect(assistantMsg).toContainText(/Hello,?\s*Alice/i);
-    await expect(assistantMsg).toContainText(/Goodbye,?\s*Alice/i);
+    await expect(assistantMsg).toContainText(/Alice/i, { timeout: 30_000 });
+    await expect(async () => {
+      const res = await page.request.get('/api/workflows/sequential-steps/runs');
+      const { runs } = await res.json();
+      const outputs = runs.map((r: any) => r.snapshot?.context?.['combine-messages']?.output?.message);
+      expect(outputs).toContainEqual(expect.stringMatching(/^Hello, Alice! Goodbye, Alice!$/i));
+    }).toPass({ timeout: 10_000 });
   });
 });

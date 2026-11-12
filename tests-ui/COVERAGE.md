@@ -228,8 +228,8 @@ Tracking document for Studio/Playground E2E smoke tests. Last updated: 2026-09-1
 
 |   | Test                                        | Status |
 |---|---------------------------------------------|--------|
-| 1 | Settings form uses the current server origin (including its allocated port) | ✅     |
-| 2 | Custom header sent in API requests after save | ✅     |
+| 1 | Settings shows theme and connection sections; instance URL uses the current server origin (incl. allocated port) | ✅     |
+| 2 | Custom header saved via the Unsaved-changes bar is sent in API requests, persists across navigation, stops after removal | ✅     |
 
 ---
 
