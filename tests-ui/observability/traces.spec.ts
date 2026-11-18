@@ -112,9 +112,7 @@ test.describe('Observability', () => {
     await expect(traceDetails(page).getByRole('heading', { name: /^Trace [0-9a-f]+…?$/ })).not.toBeVisible();
   });
 
-  // Blocked by mastra-ai/mastra#29044: selecting a workflow step span puts the Studio
-  // span panel into an infinite render loop and freezes the tab (core 1.81.0-alpha).
-  test.skip('span inspection within trace', async ({ page }) => {
+  test('span inspection within trace', async ({ page }) => {
     // Find a workflow trace that has multiple spans
     await page.goto('/observability');
     const workflowTrace = traceEntries(page).filter({ hasText: 'sequential-steps' }).first();
