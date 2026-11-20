@@ -1,6 +1,14 @@
 import { expect, Page } from '@playwright/test';
 
 /**
+ * Chat / Traces links in the agent page's "Agent views" navigation. The active
+ * view carries aria-current="page" (they were ARIA tabs before mastra 1.40.2).
+ */
+export function agentView(page: Page, name: 'Chat' | 'Traces') {
+  return page.getByRole('navigation', { name: 'Agent views' }).getByRole('link', { name, exact: true });
+}
+
+/**
  * Fill the chat input and click Send.
  * Waits for the input to be editable before typing, and for Send to be enabled before clicking.
  */

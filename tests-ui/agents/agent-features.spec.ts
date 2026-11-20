@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage } from '../helpers';
+import { agentView, fillAndSend, openAgentConfigPanel, waitForAssistantMessage } from '../helpers';
 
 /**
  * Open the Model settings popover dialog. Studio moved model settings from a
@@ -62,7 +62,7 @@ test.describe('Agent Features', () => {
 
     // The per-thread "Show thread traces" toggle was removed upstream
     // (mastra-ai/mastra#24274); the agent-scoped Traces tab is the trace surface.
-    await page.getByRole('tab', { name: 'Traces', exact: true }).click();
+    await agentView(page, 'Traces').click();
     // Opening Traces from a persisted thread scopes the list to that thread.
     await expect(page).toHaveURL(url =>
       url.pathname === '/agents/test-agent/traces' &&
@@ -98,7 +98,7 @@ test.describe('Agent Features', () => {
 
     await details.getByRole('button', { name: 'Close trace', exact: true }).click();
     await expect(details).not.toBeVisible();
-    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
+    await agentView(page, 'Chat').click();
     await expect(page).toHaveURL(/\/agents\/test-agent\/threads\//);
     await expect(page.getByRole('textbox', { name: 'Enter your message' })).toBeEditable();
   });
@@ -137,7 +137,7 @@ test.describe('Agent Features', () => {
 
   test('thread navigation reflects the active agent and supports switching agents', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
-    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(agentView(page, 'Chat')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Test Agent');
 
     // Switch agents through the supported agents-list navigation path.
@@ -145,7 +145,7 @@ test.describe('Agent Features', () => {
     await page.getByRole('link', { name: /^Helper Agent\b/ }).click();
     // Agent list links now open Chat directly.
     await expect(page).toHaveURL('/agents/helper-agent/threads/new');
-    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(agentView(page, 'Chat')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Helper Agent');
   });
 

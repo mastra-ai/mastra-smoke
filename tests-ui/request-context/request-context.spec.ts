@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { agentView } from '../helpers';
 
 // Studio's chat composer now sends messages to the agent `send-message`
 // endpoint (it previously used `/signals`, and `/stream` before that). The
@@ -78,7 +79,7 @@ test.describe('Request Context', () => {
 
   test('request context is included in agent chat and cleared to empty after removal', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
-    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(agentView(page, 'Chat')).toHaveAttribute('aria-current', 'page');
     await saveAgentRequestContext(page, JSON.stringify({ tenantId: 'e2e-tenant-42', env: 'test' }));
 
     const rc = extractRequestContext(await captureNextSend(page, 'say hello'));

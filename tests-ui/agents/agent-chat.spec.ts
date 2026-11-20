@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { fillAndSend, openAgentConfigPanel, waitForAssistantMessage, waitForThreadSidebar } from '../helpers';
+import { agentView, fillAndSend, openAgentConfigPanel, waitForAssistantMessage, waitForThreadSidebar } from '../helpers';
 
 /**
  * Open the Model settings dialog. Studio moved model settings from a right-panel
@@ -29,7 +29,7 @@ test.describe('Agent Chat', () => {
     await expect(page).toHaveURL('/agents/test-agent/threads/new');
 
     await expect(page).toHaveTitle(/Mastra Studio/);
-    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(agentView(page, 'Chat')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch agent' }))
       .toHaveText('Test Agent');
     await expect(page.getByRole('textbox', { name: 'Enter your message' })).toBeEditable();
@@ -240,15 +240,14 @@ test.describe('Agent Chat', () => {
 
   test('agent tabs switch between chat and traces', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
-    const tabs = page.getByRole('tablist').filter({ has: page.getByRole('tab', { name: 'Chat', exact: true }) });
-    await expect(tabs.getByRole('tab')).toHaveText(['Chat', 'Traces']);
-    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('navigation', { name: 'Agent views' }).getByRole('link')).toHaveText(['Chat', 'Traces']);
+    await expect(agentView(page, 'Chat')).toHaveAttribute('aria-current', 'page');
 
-    await page.getByRole('tab', { name: 'Traces', exact: true }).click();
+    await agentView(page, 'Traces').click();
     await expect(page).toHaveURL(/\/agents\/test-agent\/traces\?rootEntityType=agent&filterEntityId=test-agent/);
-    await expect(page.getByRole('tab', { name: 'Traces', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(agentView(page, 'Traces')).toHaveAttribute('aria-current', 'page');
 
-    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
+    await agentView(page, 'Chat').click();
     await expect(page).toHaveURL('/agents/test-agent/threads/new');
     await expect(page.getByRole('textbox', { name: 'Enter your message' })).toBeEditable();
   });
@@ -257,7 +256,7 @@ test.describe('Agent Chat', () => {
     test.slow();
     await page.goto('/agents/approval-agent/threads/new');
 
-    await expect(page.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(agentView(page, 'Chat')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox')).toHaveText('Approval Agent');
 
     // Ask the agent to greet someone — this should trigger the needs-approval tool

@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { agentView } from '../helpers';
 
-// Studio's agent layout exposes Chat / Traces tabs. The Editor entry is an
-// icon-only control next to the tab list that is disabled because the smoke
+// Studio's agent layout exposes Chat / Traces views. The Editor entry is an
+// icon-only control next to the view links that is disabled because the smoke
 // fixture has no MastraEditor registered. The agent-scoped Evals tab (and its
 // /evaluate and /review routes) was removed upstream in mastra-ai/mastra#24205;
 // evaluation now lives only under the global /experiments, /datasets, /scorers
@@ -29,9 +30,8 @@ test.describe('Agent layout tabs', () => {
 
   test('/agents/test-agent: tab list is exactly Chat and Traces', async ({ page }) => {
     await page.goto('/agents/test-agent/threads/new');
-    const tabs = page.getByRole('tablist').filter({ has: page.getByRole('tab', { name: 'Chat', exact: true }) });
-    await expect(tabs.getByRole('tab')).toHaveText(['Chat', 'Traces']);
-    await expect(page.getByRole('tab', { name: 'Evals', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Agent views' }).getByRole('link')).toHaveText(['Chat', 'Traces']);
+    await expect(page.getByRole('navigation', { name: 'Agent views' }).getByRole('link', { name: 'Evals' })).toHaveCount(0);
   });
 
   test('/agents/test-agent/traces: Traces tab is active and scoped to the agent', async ({ page }) => {
@@ -41,8 +41,8 @@ test.describe('Agent layout tabs', () => {
     await page.goto('/agents/test-agent/traces');
     await expect(page).toHaveURL(/\/agents\/test-agent\/traces\?rootEntityType=agent&filterEntityId=test-agent/);
 
-    const tracesTab = page.getByRole('tab', { name: 'Traces', exact: true });
-    await expect(tracesTab).toHaveAttribute('aria-selected', 'true');
+    const tracesTab = agentView(page, 'Traces');
+    await expect(tracesTab).toHaveAttribute('aria-current', 'page');
 
     expect(errors, `page errors: ${errors.join('\n')}`).toEqual([]);
   });
