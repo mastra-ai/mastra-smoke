@@ -1,10 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
 async function expectDatasetLoaded(page: Page, datasetName: string) {
-  // The page-layout shell (mastra-ai/mastra#24643) gives every detail page an
-  // sr-only h1 of the entity id; the visible title is the breadcrumb switcher.
-  const datasetId = new URL(page.url()).pathname.split('/')[2];
-  await expect(page.getByRole('main').getByRole('heading', { name: datasetId, level: 1, exact: true })).toBeAttached({ timeout: 10_000 });
+  // The dataset page's sr-only h1 carries the dataset name (it was the id until
+  // mastra 1.40.2-alpha.3); the visible title is the breadcrumb switcher.
+  await expect(page.getByRole('main').getByRole('heading', { name: datasetName, level: 1, exact: true })).toBeAttached({ timeout: 10_000 });
   // The current breadcrumb crumb is a "Switch dataset" combobox labelled with the
   // dataset name (Studio unified crumbs: current = label + switcher, not a link).
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('combobox', { name: 'Switch dataset', exact: true }))
